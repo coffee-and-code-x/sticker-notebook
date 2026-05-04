@@ -611,15 +611,43 @@
 
           case 'star': {
             const outerR = r;
-            const innerR = r * 0.42;
-            const points = 5;
-            const start  = -Math.PI / 2;
-            for (let i = 0; i < points * 2; i++) {
-              const radius = i % 2 === 0 ? outerR : innerR;
-              const angle  = start + (i * Math.PI) / points;
-              const x = cx + radius * Math.cos(angle);
-              const y = cy + radius * Math.sin(angle);
-              i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+            const innerR = r * 0.46;
+            const n      = 5;
+            const startA = -Math.PI / 2;
+
+            // 10頂点を生成（偶数=外側, 奇数=内側）
+            const verts = [];
+            for (let i = 0; i < n * 2; i++) {
+              const rad   = i % 2 === 0 ? outerR : innerR;
+              const angle = startA + (i * Math.PI) / n;
+              verts.push([cx + rad * Math.cos(angle), cy + rad * Math.sin(angle)]);
+            }
+
+            const N = verts.length;
+            const crOuter = r * 0.22; // 外側先端の丸み
+            const crInner = r * 0.10; // 内側くびれの丸み
+
+            for (let i = 0; i < N; i++) {
+              const [x,  y]  = verts[i];
+              const [px, py] = verts[(i - 1 + N) % N];
+              const [nx, ny] = verts[(i + 1) % N];
+              const cr = i % 2 === 0 ? crOuter : crInner;
+
+              // prev / next 方向の単位ベクトル
+              const dpLen = Math.hypot(px - x, py - y);
+              const unxP = (px - x) / dpLen, unyP = (py - y) / dpLen;
+              const dnLen = Math.hypot(nx - x, ny - y);
+              const unxN = (nx - x) / dnLen, unyN = (ny - y) / dnLen;
+
+              // 各頂点の手前と先に丸みの始点・終点を置く
+              const ex = x + unxP * cr, ey = y + unyP * cr;
+              const fx = x + unxN * cr, fy = y + unyN * cr;
+
+              if (i === 0) ctx.moveTo(ex, ey);
+              else         ctx.lineTo(ex, ey);
+
+              // 頂点を制御点とした二次ベジェで角を丸める
+              ctx.quadraticCurveTo(x, y, fx, fy);
             }
             ctx.closePath();
             break;
