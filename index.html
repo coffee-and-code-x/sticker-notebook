@@ -520,7 +520,6 @@
           localStorage.setItem(STORAGE_KEY, JSON.stringify(all));
         } catch (e) {
           if (e.name === 'QuotaExceededError') {
-            alert('保存できる容量がいっぱいです。\nコレクションから古いシールを削除してください。');
             return null;
           }
           throw e;
@@ -664,13 +663,7 @@
         ctx.beginPath();
         ctx.arc(pos.x, pos.y, state.penSize / 2, 0, Math.PI * 2);
         ctx.fillStyle = state.eraserMode ? 'rgba(0,0,0,1)' : state.penColor;
-        if (state.eraserMode) {
-          ctx.globalCompositeOperation = 'destination-out';
-          ctx.fill();
-          ctx.globalCompositeOperation = 'source-over';
-        } else {
-          ctx.fill();
-        }
+        ctx.fill();
         PreviewRenderer.render();
       },
 
@@ -685,7 +678,6 @@
         ctx.moveTo(this.lastX, this.lastY);
         ctx.lineTo(pos.x, pos.y);
         ctx.stroke();
-        ctx.globalCompositeOperation = 'source-over';
 
         this.lastX = pos.x;
         this.lastY = pos.y;
@@ -694,6 +686,7 @@
 
       _onUp() {
         this.isDrawing = false;
+        // compositeOperationをリセットして次の操作に備える
         this.ctx.globalCompositeOperation = 'source-over';
       },
 
@@ -759,7 +752,8 @@
         if (state.stickerText) {
           ctx.save();
           ShapeRenderer.clipToShape(ctx, cx, cy, r, state.shape);
-          ctx.font         = 'bold 26px "Hiragino Maru Gothic Pro", sans-serif';
+          const fontSize = state.stickerText.length > 8 ? 18 : 26;
+          ctx.font         = `bold ${fontSize}px "Hiragino Maru Gothic Pro", sans-serif`;
           ctx.textAlign    = 'center';
           ctx.textBaseline = 'middle';
           const textY = state.stamp ? cy + 48 : cy;
@@ -913,9 +907,21 @@
       const imageData = final.toDataURL('image/png');
 
       const sticker = StickerStorage.save(imageData);
-      if (!sticker) return;
+      if (!sticker) {
+        showSaveError();
+        return;
+      }
 
       showSaveSuccess(sticker);
+    }
+
+    function showSaveError() {
+      const overlay = document.createElement('div');
+      overlay.className = 'save-success-overlay';
+      overlay.innerHTML = `<p style="font-size:1.2rem">⚠️ いっぱいになったよ！<br>古いシールをけしてね</p>`;
+      overlay.addEventListener('click', () => overlay.remove());
+      document.body.appendChild(overlay);
+      setTimeout(() => overlay.remove(), 2500);
     }
 
     function showSaveSuccess(sticker) {
