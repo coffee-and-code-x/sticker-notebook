@@ -1,0 +1,944 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>デジタルシール手帳</title>
+  <style>
+    /* ===== RESET & BASE ===== */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --c-primary:   #ff6b9d;
+      --c-secondary: #ffd93d;
+      --c-accent:    #6bcb77;
+      --c-bg:        #fff9f0;
+      --c-surface:   #ffffff;
+      --c-text:      #333333;
+      --radius-lg:   20px;
+      --radius-md:   12px;
+      --shadow:      0 4px 12px rgba(0,0,0,0.12);
+    }
+
+    body {
+      font-family: 'Hiragino Maru Gothic Pro', 'BIZ UDPGothic', 'Rounded Mplus 1c', sans-serif;
+      background: var(--c-bg);
+      max-width: 480px;
+      margin: 0 auto;
+      min-height: 100dvh;
+      overflow-x: hidden;
+      color: var(--c-text);
+    }
+
+    /* ===== SCREEN SYSTEM ===== */
+    .screen {
+      display: none;
+      flex-direction: column;
+      min-height: calc(100dvh - 64px);
+      padding-bottom: 24px;
+    }
+    body[data-screen="home"]       #screen-home       { display: flex; }
+    body[data-screen="maker"]      #screen-maker      { display: flex; }
+    body[data-screen="collection"] #screen-collection { display: flex; }
+    body[data-screen="share"]      #screen-share      { display: flex; }
+
+    /* ===== SCREEN HEADER ===== */
+    .screen-header {
+      background: linear-gradient(135deg, var(--c-primary), #ff8c42);
+      padding: 16px 20px 14px;
+      text-align: center;
+      box-shadow: 0 2px 8px rgba(255,107,157,0.3);
+    }
+    .screen-header h1 {
+      font-size: 1.3rem;
+      font-weight: bold;
+      color: #ffffff;
+      letter-spacing: 0.05em;
+    }
+
+    /* ===== PANEL ===== */
+    .panel {
+      background: var(--c-surface);
+      border-radius: var(--radius-lg);
+      margin: 8px 12px;
+      padding: 14px 16px;
+      box-shadow: var(--shadow);
+    }
+    .panel-label {
+      font-size: 0.8rem;
+      font-weight: bold;
+      color: var(--c-primary);
+      margin-bottom: 10px;
+      letter-spacing: 0.08em;
+    }
+
+    /* ===== MAKER: PREVIEW ===== */
+    .panel-preview {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      padding: 20px;
+    }
+    #preview-canvas {
+      display: block;
+      width: min(260px, calc(100vw - 80px));
+      height: min(260px, calc(100vw - 80px));
+      border-radius: var(--radius-lg);
+      box-shadow: 0 8px 24px rgba(0,0,0,0.15);
+    }
+
+    /* ===== MAKER: SHAPES ===== */
+    .shape-grid {
+      display: flex;
+      gap: 10px;
+      justify-content: space-around;
+    }
+    .shape-btn {
+      width: 60px;
+      height: 60px;
+      border: 3px solid #e0e0e0;
+      border-radius: var(--radius-md);
+      font-size: 1.8rem;
+      background: #f5f5f5;
+      cursor: pointer;
+      transition: transform 0.1s, border-color 0.1s, background 0.1s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .shape-btn:active { transform: scale(0.95); }
+    .shape-btn.active {
+      border-color: var(--c-primary);
+      background: #fff0f6;
+      transform: scale(1.08);
+    }
+
+    /* ===== MAKER: COLORS ===== */
+    .color-grid {
+      display: grid;
+      grid-template-columns: repeat(8, 1fr);
+      gap: 6px;
+    }
+    .color-swatch {
+      width: 100%;
+      aspect-ratio: 1;
+      border-radius: 50%;
+      border: 3px solid transparent;
+      cursor: pointer;
+      transition: transform 0.1s, border-color 0.1s;
+    }
+    .color-swatch:active { transform: scale(0.9); }
+    .color-swatch.active {
+      border-color: #333;
+      transform: scale(1.2);
+      box-shadow: 0 0 0 2px #fff, 0 0 0 4px #333;
+    }
+
+    /* ===== MAKER: STAMPS ===== */
+    .stamp-scroll {
+      display: flex;
+      gap: 8px;
+      overflow-x: auto;
+      padding-bottom: 6px;
+      -webkit-overflow-scrolling: touch;
+      scrollbar-width: none;
+    }
+    .stamp-scroll::-webkit-scrollbar { display: none; }
+    .stamp-btn {
+      flex-shrink: 0;
+      width: 52px;
+      height: 52px;
+      font-size: 1.7rem;
+      border: 3px solid transparent;
+      border-radius: var(--radius-md);
+      background: #f5f5f5;
+      cursor: pointer;
+      transition: transform 0.1s, border-color 0.1s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .stamp-btn:active { transform: scale(0.9); }
+    .stamp-btn.active {
+      border-color: var(--c-primary);
+      background: #fff0f6;
+    }
+    .stamp-none { font-size: 1.2rem; color: #999; }
+
+    /* ===== MAKER: TEXT INPUT ===== */
+    #sticker-text {
+      width: 100%;
+      padding: 12px 14px;
+      font-size: 1.1rem;
+      font-family: inherit;
+      border: 3px solid #e0e0e0;
+      border-radius: var(--radius-md);
+      outline: none;
+      transition: border-color 0.15s;
+      background: #fafafa;
+    }
+    #sticker-text:focus {
+      border-color: var(--c-primary);
+      background: #fff;
+    }
+
+    /* ===== MAKER: DRAWING ===== */
+    .draw-toolbar {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 12px;
+      flex-wrap: wrap;
+    }
+    .draw-toolbar input[type="color"] {
+      width: 44px;
+      height: 44px;
+      border: 3px solid #e0e0e0;
+      border-radius: var(--radius-md);
+      padding: 2px;
+      cursor: pointer;
+      background: #fff;
+    }
+    .draw-toolbar input[type="range"] {
+      flex: 1;
+      min-width: 80px;
+      accent-color: var(--c-primary);
+    }
+    .tool-btn {
+      padding: 8px 14px;
+      font-size: 0.85rem;
+      font-family: inherit;
+      font-weight: bold;
+      border: 3px solid #e0e0e0;
+      border-radius: var(--radius-md);
+      background: #f5f5f5;
+      cursor: pointer;
+      transition: background 0.1s, border-color 0.1s;
+      white-space: nowrap;
+    }
+    .tool-btn.active {
+      border-color: var(--c-primary);
+      background: #fff0f6;
+      color: var(--c-primary);
+    }
+    .tool-btn:active { transform: scale(0.95); }
+
+    #draw-canvas {
+      display: block;
+      width: min(260px, calc(100vw - 80px));
+      height: min(260px, calc(100vw - 80px));
+      border: 3px dashed #ccc;
+      border-radius: var(--radius-md);
+      touch-action: none;
+      cursor: crosshair;
+      margin: 0 auto;
+    }
+
+    /* ===== MAKER: SAVE ===== */
+    .panel-save { padding: 8px 12px 12px; }
+    .save-btn {
+      width: 100%;
+      padding: 18px;
+      font-size: 1.25rem;
+      font-weight: bold;
+      font-family: inherit;
+      background: linear-gradient(135deg, var(--c-primary), #ff8c42);
+      color: #fff;
+      border: none;
+      border-radius: var(--radius-lg);
+      box-shadow: 0 6px 0 #c04c77;
+      cursor: pointer;
+      letter-spacing: 0.05em;
+      transition: transform 0.1s, box-shadow 0.1s;
+    }
+    .save-btn:active {
+      transform: translateY(3px);
+      box-shadow: 0 3px 0 #c04c77;
+    }
+
+    /* ===== BOTTOM NAV ===== */
+    #bottom-nav {
+      position: fixed;
+      bottom: 0;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 100%;
+      max-width: 480px;
+      height: 64px;
+      background: #fff;
+      display: flex;
+      border-top: 2px solid #f0e0e0;
+      box-shadow: 0 -2px 8px rgba(0,0,0,0.08);
+      z-index: 100;
+    }
+    .nav-btn {
+      flex: 1;
+      font-size: 1.6rem;
+      border: none;
+      background: transparent;
+      cursor: pointer;
+      opacity: 0.35;
+      transition: opacity 0.15s, transform 0.1s;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 2px;
+      padding: 0;
+    }
+    .nav-btn span.nav-label {
+      font-size: 0.6rem;
+      font-family: inherit;
+      color: #999;
+    }
+    .nav-btn.active {
+      opacity: 1;
+      transform: translateY(-2px);
+    }
+    .nav-btn.active .nav-label { color: var(--c-primary); }
+
+    /* ===== PLACEHOLDER SCREENS ===== */
+    .placeholder-screen {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      flex: 1;
+      gap: 16px;
+      color: #bbb;
+      padding: 40px;
+      text-align: center;
+    }
+    .placeholder-screen .placeholder-icon { font-size: 4rem; }
+    .placeholder-screen p { font-size: 1rem; }
+
+    /* ===== SAVE SUCCESS OVERLAY ===== */
+    .save-success-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.45);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 16px;
+      z-index: 999;
+      animation: fadeInOut 1.8s ease forwards;
+    }
+    .save-success-overlay .success-img {
+      width: 160px;
+      height: 160px;
+      border-radius: 20px;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+      animation: bounceIn 0.4s cubic-bezier(0.34,1.56,0.64,1) both;
+    }
+    .save-success-overlay p {
+      color: #fff;
+      font-size: 1.4rem;
+      font-weight: bold;
+      text-shadow: 0 2px 8px rgba(0,0,0,0.5);
+    }
+    @keyframes fadeInOut {
+      0%   { opacity: 0; }
+      15%  { opacity: 1; }
+      70%  { opacity: 1; }
+      100% { opacity: 0; }
+    }
+    @keyframes bounceIn {
+      from { transform: scale(0.3); opacity: 0; }
+      to   { transform: scale(1);   opacity: 1; }
+    }
+  </style>
+</head>
+<body data-screen="maker">
+
+  <!-- ===== HOME SCREEN (Phase 2) ===== -->
+  <div id="screen-home" class="screen">
+    <header class="screen-header"><h1>🏠 シール手帳</h1></header>
+    <div class="placeholder-screen">
+      <span class="placeholder-icon">📖</span>
+      <p>手帳ページは<br>Phase 2 で追加されます</p>
+    </div>
+  </div>
+
+  <!-- ===== MAKER SCREEN (Phase 1) ===== -->
+  <div id="screen-maker" class="screen">
+    <header class="screen-header"><h1>✏️ シールをつくろう！</h1></header>
+    <main class="maker-main">
+
+      <!-- Preview -->
+      <section class="panel panel-preview">
+        <canvas id="preview-canvas" width="300" height="300"></canvas>
+      </section>
+
+      <!-- Shape -->
+      <section class="panel panel-shapes">
+        <p class="panel-label">かたち</p>
+        <div class="shape-grid">
+          <button class="shape-btn active" data-shape="circle"
+                  aria-label="まる">●</button>
+          <button class="shape-btn" data-shape="star"
+                  aria-label="ほし">★</button>
+          <button class="shape-btn" data-shape="heart"
+                  aria-label="はーと">♥</button>
+          <button class="shape-btn" data-shape="square"
+                  aria-label="しかく">■</button>
+        </div>
+      </section>
+
+      <!-- Color -->
+      <section class="panel panel-colors">
+        <p class="panel-label">いろ</p>
+        <div class="color-grid" id="color-palette"></div>
+      </section>
+
+      <!-- Stamps -->
+      <section class="panel panel-stamps">
+        <p class="panel-label">スタンプ</p>
+        <div class="stamp-scroll" id="stamp-picker"></div>
+      </section>
+
+      <!-- Text -->
+      <section class="panel panel-text">
+        <p class="panel-label">もじ</p>
+        <input type="text" id="sticker-text" maxlength="12"
+               placeholder="ことばをいれてね">
+      </section>
+
+      <!-- Drawing -->
+      <section class="panel panel-draw">
+        <p class="panel-label">おえかき</p>
+        <div class="draw-toolbar">
+          <input type="color" id="pen-color" value="#e74c3c" title="ペンのいろ">
+          <input type="range" id="pen-size" min="2" max="24" value="6"
+                 title="ペンのふとさ">
+          <button class="tool-btn" id="btn-eraser">消しゴム</button>
+          <button class="tool-btn" id="btn-clear-draw">全消し</button>
+        </div>
+        <canvas id="draw-canvas" width="300" height="300"></canvas>
+      </section>
+
+      <!-- Save -->
+      <section class="panel panel-save">
+        <button class="save-btn" id="btn-save">💾 シールにする！</button>
+      </section>
+
+    </main>
+  </div>
+
+  <!-- ===== COLLECTION SCREEN (Phase 3) ===== -->
+  <div id="screen-collection" class="screen">
+    <header class="screen-header"><h1>⭐ シールコレクション</h1></header>
+    <div class="placeholder-screen">
+      <span class="placeholder-icon">🗂️</span>
+      <p>コレクション画面は<br>Phase 3 で追加されます</p>
+    </div>
+  </div>
+
+  <!-- ===== SHARE SCREEN (Phase 4) ===== -->
+  <div id="screen-share" class="screen">
+    <header class="screen-header"><h1>📷 QRでわたす</h1></header>
+    <div class="placeholder-screen">
+      <span class="placeholder-icon">📲</span>
+      <p>QR共有画面は<br>Phase 4 で追加されます</p>
+    </div>
+  </div>
+
+  <!-- ===== BOTTOM NAV ===== -->
+  <nav id="bottom-nav">
+    <button class="nav-btn" data-target="home">
+      🏠<span class="nav-label">手帳</span>
+    </button>
+    <button class="nav-btn" data-target="maker">
+      ✏️<span class="nav-label">つくる</span>
+    </button>
+    <button class="nav-btn" data-target="collection">
+      ⭐<span class="nav-label">コレクション</span>
+    </button>
+    <button class="nav-btn" data-target="share">
+      📷<span class="nav-label">QR</span>
+    </button>
+  </nav>
+
+  <!-- CDN -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jsqr/dist/jsQR.js"></script>
+
+  <script>
+    'use strict';
+
+    /* ===== CONSTANTS ===== */
+
+    const COLOR_PALETTE = [
+      '#ff6b9d', '#ff8c42', '#ffd93d', '#6bcb77',
+      '#4ecdc4', '#45b7d1', '#96ceb4', '#dda0dd',
+      '#ff9ff3', '#54a0ff', '#5f27cd', '#ee5a24',
+      '#ffffff', '#f0f0f0', '#888888', '#222222'
+    ];
+
+    const STAMP_LIST = [
+      '⭐','🌟','💖','🌈','🦄','🐱','🐶','🐰',
+      '🎀','🍎','🍓','🍭','🎂','🎈','🎵','🌸',
+      '🌺','🦋','🐸','🍀','☀️','🌙','❄️','🔥'
+    ];
+
+    /* ===== STATE ===== */
+
+    const state = {
+      shape:       'circle',
+      bgColor:     '#ff6b9d',
+      stamp:       null,
+      stickerText: '',
+      penColor:    '#e74c3c',
+      penSize:     6,
+      eraserMode:  false,
+    };
+
+    /* ===== STORAGE ===== */
+
+    const STORAGE_KEY = 'stickerNotebook_stickers';
+
+    const StickerStorage = {
+      getAll() {
+        try {
+          return JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+        } catch {
+          return [];
+        }
+      },
+
+      save(imageData) {
+        const sticker = {
+          id:        'sticker_' + Date.now().toString(36),
+          createdAt: new Date().toISOString(),
+          source:    'self',
+          imageData,
+        };
+        try {
+          const all = this.getAll();
+          all.unshift(sticker);
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(all));
+        } catch (e) {
+          if (e.name === 'QuotaExceededError') {
+            alert('保存できる容量がいっぱいです。\nコレクションから古いシールを削除してください。');
+            return null;
+          }
+          throw e;
+        }
+        return sticker;
+      },
+
+      delete(id) {
+        const filtered = this.getAll().filter(s => s.id !== id);
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(filtered));
+      },
+    };
+
+    /* ===== SHAPE RENDERER ===== */
+
+    const ShapeRenderer = {
+      clipToShape(ctx, cx, cy, r, shape) {
+        ctx.beginPath();
+        switch (shape) {
+          case 'circle':
+            ctx.arc(cx, cy, r, 0, Math.PI * 2);
+            break;
+
+          case 'square': {
+            const corner = r * 0.15;
+            ctx.moveTo(cx - r + corner, cy - r);
+            ctx.lineTo(cx + r - corner, cy - r);
+            ctx.quadraticCurveTo(cx + r, cy - r, cx + r, cy - r + corner);
+            ctx.lineTo(cx + r, cy + r - corner);
+            ctx.quadraticCurveTo(cx + r, cy + r, cx + r - corner, cy + r);
+            ctx.lineTo(cx - r + corner, cy + r);
+            ctx.quadraticCurveTo(cx - r, cy + r, cx - r, cy + r - corner);
+            ctx.lineTo(cx - r, cy - r + corner);
+            ctx.quadraticCurveTo(cx - r, cy - r, cx - r + corner, cy - r);
+            ctx.closePath();
+            break;
+          }
+
+          case 'heart': {
+            const s = r * 0.9;
+            ctx.moveTo(cx, cy + s * 0.9);
+            ctx.bezierCurveTo(
+              cx - s * 1.3, cy + s * 0.2,
+              cx - s * 1.5, cy - s * 0.65,
+              cx - s * 0.75, cy - s * 0.75
+            );
+            ctx.bezierCurveTo(
+              cx - s * 0.2, cy - s * 1.05,
+              cx,           cy - s * 0.65,
+              cx,           cy - s * 0.35
+            );
+            ctx.bezierCurveTo(
+              cx,           cy - s * 0.65,
+              cx + s * 0.2, cy - s * 1.05,
+              cx + s * 0.75, cy - s * 0.75
+            );
+            ctx.bezierCurveTo(
+              cx + s * 1.5, cy - s * 0.65,
+              cx + s * 1.3, cy + s * 0.2,
+              cx,           cy + s * 0.9
+            );
+            ctx.closePath();
+            break;
+          }
+
+          case 'star': {
+            const outerR = r;
+            const innerR = r * 0.42;
+            const points = 5;
+            const start  = -Math.PI / 2;
+            for (let i = 0; i < points * 2; i++) {
+              const radius = i % 2 === 0 ? outerR : innerR;
+              const angle  = start + (i * Math.PI) / points;
+              const x = cx + radius * Math.cos(angle);
+              const y = cy + radius * Math.sin(angle);
+              i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+            }
+            ctx.closePath();
+            break;
+          }
+        }
+        ctx.clip();
+      },
+    };
+
+    /* ===== DRAWING PAD ===== */
+
+    const DrawingPad = {
+      canvas:    null,
+      ctx:       null,
+      isDrawing: false,
+      lastX:     0,
+      lastY:     0,
+
+      init() {
+        this.canvas = document.getElementById('draw-canvas');
+        this.ctx    = this.canvas.getContext('2d');
+        this.ctx.lineCap  = 'round';
+        this.ctx.lineJoin = 'round';
+
+        this.canvas.addEventListener('pointerdown', e => this._onDown(e));
+        this.canvas.addEventListener('pointermove', e => this._onMove(e));
+        this.canvas.addEventListener('pointerup',   e => this._onUp(e));
+        this.canvas.addEventListener('pointerout',  e => this._onUp(e));
+        this.canvas.addEventListener('touchstart',  e => e.preventDefault(), { passive: false });
+      },
+
+      _getPos(e) {
+        const rect   = this.canvas.getBoundingClientRect();
+        const scaleX = this.canvas.width  / rect.width;
+        const scaleY = this.canvas.height / rect.height;
+        return {
+          x: (e.clientX - rect.left) * scaleX,
+          y: (e.clientY - rect.top)  * scaleY,
+        };
+      },
+
+      _applyPenSettings() {
+        const ctx = this.ctx;
+        ctx.lineWidth = state.penSize;
+        if (state.eraserMode) {
+          ctx.globalCompositeOperation = 'destination-out';
+          ctx.strokeStyle = 'rgba(0,0,0,1)';
+        } else {
+          ctx.globalCompositeOperation = 'source-over';
+          ctx.strokeStyle = state.penColor;
+        }
+      },
+
+      _onDown(e) {
+        e.preventDefault();
+        this.canvas.setPointerCapture(e.pointerId);
+        this.isDrawing = true;
+        const pos = this._getPos(e);
+        this.lastX = pos.x;
+        this.lastY = pos.y;
+
+        // Single dot for tap without move
+        this._applyPenSettings();
+        const ctx = this.ctx;
+        ctx.beginPath();
+        ctx.arc(pos.x, pos.y, state.penSize / 2, 0, Math.PI * 2);
+        ctx.fillStyle = state.eraserMode ? 'rgba(0,0,0,1)' : state.penColor;
+        if (state.eraserMode) {
+          ctx.globalCompositeOperation = 'destination-out';
+          ctx.fill();
+          ctx.globalCompositeOperation = 'source-over';
+        } else {
+          ctx.fill();
+        }
+        PreviewRenderer.render();
+      },
+
+      _onMove(e) {
+        if (!this.isDrawing) return;
+        e.preventDefault();
+        const pos = this._getPos(e);
+        const ctx = this.ctx;
+
+        this._applyPenSettings();
+        ctx.beginPath();
+        ctx.moveTo(this.lastX, this.lastY);
+        ctx.lineTo(pos.x, pos.y);
+        ctx.stroke();
+        ctx.globalCompositeOperation = 'source-over';
+
+        this.lastX = pos.x;
+        this.lastY = pos.y;
+        PreviewRenderer.render();
+      },
+
+      _onUp() {
+        this.isDrawing = false;
+        this.ctx.globalCompositeOperation = 'source-over';
+      },
+
+      clear() {
+        this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+        PreviewRenderer.render();
+      },
+    };
+
+    /* ===== PREVIEW RENDERER ===== */
+
+    const PreviewRenderer = {
+      canvas:     null,
+      ctx:        null,
+      drawCanvas: null,
+
+      init() {
+        this.canvas     = document.getElementById('preview-canvas');
+        this.ctx        = this.canvas.getContext('2d');
+        this.drawCanvas = document.getElementById('draw-canvas');
+      },
+
+      render() {
+        const ctx = this.ctx;
+        const W   = this.canvas.width;
+        const H   = this.canvas.height;
+        const cx  = W / 2;
+        const cy  = H / 2;
+        const r   = 130;
+
+        ctx.clearRect(0, 0, W, H);
+
+        // Layer 0: white base
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, W, H);
+
+        // Layer 1: shape + bg color
+        ctx.save();
+        ShapeRenderer.clipToShape(ctx, cx, cy, r, state.shape);
+        ctx.fillStyle = state.bgColor;
+        ctx.fillRect(0, 0, W, H);
+        ctx.restore();
+
+        // Layer 2: hand drawing (clipped to shape)
+        ctx.save();
+        ShapeRenderer.clipToShape(ctx, cx, cy, r, state.shape);
+        ctx.drawImage(this.drawCanvas, 0, 0, W, H);
+        ctx.restore();
+
+        // Layer 3: emoji stamp
+        if (state.stamp) {
+          ctx.save();
+          ShapeRenderer.clipToShape(ctx, cx, cy, r, state.shape);
+          const stampY = state.stickerText ? cy - 18 : cy;
+          ctx.font = '72px serif';
+          ctx.textAlign    = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillText(state.stamp, cx, stampY);
+          ctx.restore();
+        }
+
+        // Layer 4: text
+        if (state.stickerText) {
+          ctx.save();
+          ShapeRenderer.clipToShape(ctx, cx, cy, r, state.shape);
+          ctx.font         = 'bold 26px "Hiragino Maru Gothic Pro", sans-serif';
+          ctx.textAlign    = 'center';
+          ctx.textBaseline = 'middle';
+          const textY = state.stamp ? cy + 48 : cy;
+          ctx.strokeStyle = 'rgba(0,0,0,0.35)';
+          ctx.lineWidth   = 5;
+          ctx.strokeText(state.stickerText, cx, textY);
+          ctx.fillStyle = '#ffffff';
+          ctx.fillText(state.stickerText, cx, textY);
+          ctx.restore();
+        }
+      },
+    };
+
+    /* ===== MAKER UI ===== */
+
+    const MakerUI = {
+      init() {
+        this._buildColorPalette();
+        this._buildStampPicker();
+        this._wireShapeButtons();
+        this._wireTextInput();
+        this._wireDrawTools();
+        this._wireSaveButton();
+      },
+
+      _buildColorPalette() {
+        const grid = document.getElementById('color-palette');
+        COLOR_PALETTE.forEach((color, i) => {
+          const btn = document.createElement('button');
+          btn.className        = 'color-swatch' + (i === 0 ? ' active' : '');
+          btn.style.background = color;
+          btn.dataset.color    = color;
+          btn.setAttribute('aria-label', color);
+          if (color === '#ffffff' || color === '#f0f0f0') {
+            btn.style.border = '3px solid #ccc';
+          }
+          btn.addEventListener('click', () => {
+            state.bgColor = color;
+            grid.querySelectorAll('.color-swatch').forEach(s =>
+              s.classList.toggle('active', s.dataset.color === color)
+            );
+            PreviewRenderer.render();
+          });
+          grid.appendChild(btn);
+        });
+      },
+
+      _buildStampPicker() {
+        const row = document.getElementById('stamp-picker');
+
+        const noneBtn = document.createElement('button');
+        noneBtn.className = 'stamp-btn stamp-none active';
+        noneBtn.textContent = '✕';
+        noneBtn.setAttribute('aria-label', 'スタンプなし');
+        noneBtn.addEventListener('click', () => {
+          state.stamp = null;
+          row.querySelectorAll('.stamp-btn').forEach(b => b.classList.remove('active'));
+          noneBtn.classList.add('active');
+          PreviewRenderer.render();
+        });
+        row.appendChild(noneBtn);
+
+        STAMP_LIST.forEach(emoji => {
+          const btn = document.createElement('button');
+          btn.className   = 'stamp-btn';
+          btn.textContent = emoji;
+          btn.setAttribute('aria-label', emoji);
+          btn.addEventListener('click', () => {
+            state.stamp = emoji;
+            row.querySelectorAll('.stamp-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            PreviewRenderer.render();
+          });
+          row.appendChild(btn);
+        });
+      },
+
+      _wireShapeButtons() {
+        document.querySelectorAll('.shape-btn').forEach(btn => {
+          btn.addEventListener('click', () => {
+            state.shape = btn.dataset.shape;
+            document.querySelectorAll('.shape-btn').forEach(b =>
+              b.classList.toggle('active', b === btn)
+            );
+            PreviewRenderer.render();
+          });
+        });
+      },
+
+      _wireTextInput() {
+        const input = document.getElementById('sticker-text');
+        input.addEventListener('input', () => {
+          state.stickerText = input.value;
+          PreviewRenderer.render();
+        });
+      },
+
+      _wireDrawTools() {
+        document.getElementById('pen-color').addEventListener('input', e => {
+          state.penColor   = e.target.value;
+          state.eraserMode = false;
+          document.getElementById('btn-eraser').classList.remove('active');
+        });
+
+        document.getElementById('pen-size').addEventListener('input', e => {
+          state.penSize = parseInt(e.target.value, 10);
+        });
+
+        document.getElementById('btn-eraser').addEventListener('click', () => {
+          state.eraserMode = !state.eraserMode;
+          document.getElementById('btn-eraser').classList.toggle('active', state.eraserMode);
+        });
+
+        document.getElementById('btn-clear-draw').addEventListener('click', () => {
+          DrawingPad.clear();
+        });
+      },
+
+      _wireSaveButton() {
+        document.getElementById('btn-save').addEventListener('click', () => {
+          handleSave();
+        });
+      },
+    };
+
+    /* ===== APP SHELL ===== */
+
+    const AppShell = {
+      init() {
+        document.querySelectorAll('.nav-btn').forEach(btn => {
+          btn.addEventListener('click', () => showScreen(btn.dataset.target));
+        });
+        showScreen('maker');
+      },
+    };
+
+    /* ===== HELPERS ===== */
+
+    function showScreen(name) {
+      document.body.dataset.screen = name;
+      document.querySelectorAll('.nav-btn').forEach(btn =>
+        btn.classList.toggle('active', btn.dataset.target === name)
+      );
+    }
+
+    function handleSave() {
+      const final = document.createElement('canvas');
+      final.width  = 300;
+      final.height = 300;
+      final.getContext('2d').drawImage(PreviewRenderer.canvas, 0, 0);
+      const imageData = final.toDataURL('image/png');
+
+      const sticker = StickerStorage.save(imageData);
+      if (!sticker) return;
+
+      showSaveSuccess(sticker);
+    }
+
+    function showSaveSuccess(sticker) {
+      const overlay = document.createElement('div');
+      overlay.className = 'save-success-overlay';
+      overlay.innerHTML = `
+        <img src="${sticker.imageData}" class="success-img" alt="保存したシール">
+        <p>シールにしたよ！🎉</p>
+      `;
+      overlay.addEventListener('click', () => overlay.remove());
+      document.body.appendChild(overlay);
+      setTimeout(() => overlay.remove(), 1800);
+    }
+
+    /* ===== INIT ===== */
+
+    document.addEventListener('DOMContentLoaded', () => {
+      AppShell.init();
+      PreviewRenderer.init();
+      DrawingPad.init();
+      MakerUI.init();
+      PreviewRenderer.render();
+    });
+  </script>
+</body>
+</html>
