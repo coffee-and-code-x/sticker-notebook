@@ -757,10 +757,9 @@
           ctx.textAlign    = 'center';
           ctx.textBaseline = 'middle';
           const textY = state.stamp ? cy + 48 : cy;
-          ctx.strokeStyle = 'rgba(0,0,0,0.35)';
-          ctx.lineWidth   = 5;
-          ctx.strokeText(state.stickerText, cx, textY);
-          ctx.fillStyle = '#ffffff';
+          ctx.shadowColor  = 'rgba(0,0,0,0.55)';
+          ctx.shadowBlur   = 8;
+          ctx.fillStyle    = '#ffffff';
           ctx.fillText(state.stickerText, cx, textY);
           ctx.restore();
         }
