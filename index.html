@@ -183,55 +183,131 @@
     }
 
     /* ===== MAKER: DRAWING ===== */
-    .draw-toolbar {
+
+    /* ツールバー 2行構成 */
+    .draw-toolbar-row {
       display: flex;
       align-items: center;
-      gap: 10px;
-      margin-bottom: 12px;
-      flex-wrap: wrap;
+      gap: 8px;
+      margin-bottom: 10px;
     }
-    .draw-toolbar input[type="color"] {
-      width: 44px;
-      height: 44px;
+    .draw-toolbar-row--tools { justify-content: space-between; }
+
+    /* ペンサイズ 3段階ボタン */
+    .pen-size-group { display: flex; gap: 6px; align-items: center; }
+    .pen-size-btn {
+      width: 52px;
+      height: 52px;
       border: 3px solid #e0e0e0;
-      border-radius: var(--radius-md);
-      padding: 2px;
+      border-radius: 14px;
+      background: #f5f5f5;
       cursor: pointer;
-      background: #fff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: border-color 0.1s, background 0.1s, transform 0.08s;
+      flex-shrink: 0;
     }
-    .draw-toolbar input[type="range"] {
-      flex: 1;
-      min-width: 80px;
-      accent-color: var(--c-primary);
+    .pen-size-btn.active {
+      border-color: var(--c-primary);
+      background: #fff0f6;
+      transform: scale(1.1);
     }
+    .pen-size-btn:active { transform: scale(0.93); }
+    .pen-dot {
+      display: block;
+      border-radius: 50%;
+      background: #333;
+    }
+
+    /* アクションボタン群 */
+    .draw-action-group { display: flex; gap: 6px; }
     .tool-btn {
-      padding: 8px 14px;
-      font-size: 0.85rem;
+      width: 48px;
+      height: 48px;
+      padding: 0;
+      font-size: 1.3rem;
       font-family: inherit;
       font-weight: bold;
       border: 3px solid #e0e0e0;
       border-radius: var(--radius-md);
       background: #f5f5f5;
       cursor: pointer;
-      transition: background 0.1s, border-color 0.1s;
-      white-space: nowrap;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: background 0.1s, border-color 0.1s, transform 0.08s;
+      flex-shrink: 0;
     }
     .tool-btn.active {
       border-color: var(--c-primary);
       background: #fff0f6;
       color: var(--c-primary);
     }
-    .tool-btn:active { transform: scale(0.95); }
+    .tool-btn:active { transform: scale(0.93); }
+    .tool-btn:disabled { opacity: 0.35; pointer-events: none; }
+
+    /* 全消しは赤系で破壊的操作を示す */
+    #btn-clear-draw { border-color: #ffb3b3; background: #fff5f5; }
+    #btn-clear-draw:active { background: #ffe0e0; }
+
+    /* ペン色スウォッチ行（行2） */
+    .draw-color-row {
+      display: flex;
+      gap: 7px;
+      flex-wrap: wrap;
+      margin-bottom: 12px;
+      justify-content: center;
+    }
+    .draw-color-row .color-swatch {
+      width: 34px;
+      height: 34px;
+      flex-shrink: 0;
+    }
+
+    /* キャンバスラップ（確認ダイアログの基準点） */
+    .draw-canvas-wrap { position: relative; }
 
     #draw-canvas {
       display: block;
-      width: min(260px, calc(100vw - 80px));
-      height: min(260px, calc(100vw - 80px));
-      border: 3px dashed #ccc;
+      width: min(280px, calc(100vw - 56px));
+      height: min(280px, calc(100vw - 56px));
+      border: 3px solid #f0c0d8;
       border-radius: var(--radius-md);
       touch-action: none;
       cursor: crosshair;
       margin: 0 auto;
+      background: #ffffff;
+    }
+    #draw-canvas.eraser-mode { cursor: cell; }
+
+    /* 全消し確認ダイアログ */
+    .confirm-dialog {
+      position: absolute;
+      bottom: calc(100% + 6px);
+      right: 0;
+      background: #fff;
+      border: 3px solid #ffb3b3;
+      border-radius: 16px;
+      padding: 14px 16px;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.15);
+      text-align: center;
+      font-size: 1rem;
+      z-index: 10;
+      min-width: 150px;
+      line-height: 1.6;
+    }
+    .confirm-dialog[hidden] { display: none; }
+    .confirm-btns { display: flex; gap: 10px; margin-top: 10px; justify-content: center; }
+    .confirm-yes {
+      padding: 10px 18px; background: #ff6b6b; color: #fff;
+      border: none; border-radius: 10px; font-size: 1rem;
+      font-family: inherit; font-weight: bold; cursor: pointer;
+    }
+    .confirm-no {
+      padding: 10px 18px; background: #e0e0e0; color: #333;
+      border: none; border-radius: 10px; font-size: 1rem;
+      font-family: inherit; font-weight: bold; cursor: pointer;
     }
 
     /* ===== MAKER: SAVE ===== */
@@ -408,14 +484,42 @@
       <!-- Drawing -->
       <section class="panel panel-draw">
         <p class="panel-label">おえかき</p>
-        <div class="draw-toolbar">
-          <input type="color" id="pen-color" value="#e74c3c" title="ペンのいろ">
-          <input type="range" id="pen-size" min="2" max="24" value="6"
-                 title="ペンのふとさ">
-          <button class="tool-btn" id="btn-eraser">消しゴム</button>
-          <button class="tool-btn" id="btn-clear-draw">全消し</button>
+
+        <!-- 行1: ペンサイズ + アクションボタン -->
+        <div class="draw-toolbar-row draw-toolbar-row--tools">
+          <div class="pen-size-group" id="pen-size-group">
+            <button class="pen-size-btn active" data-size="4" aria-label="ほそいペン">
+              <span class="pen-dot" style="width:5px;height:5px"></span>
+            </button>
+            <button class="pen-size-btn" data-size="10" aria-label="ふつうのペン">
+              <span class="pen-dot" style="width:11px;height:11px"></span>
+            </button>
+            <button class="pen-size-btn" data-size="20" aria-label="ふといペン">
+              <span class="pen-dot" style="width:20px;height:20px"></span>
+            </button>
+          </div>
+          <div class="draw-action-group">
+            <button class="tool-btn" id="btn-eraser"     aria-label="けしごむ">🩹</button>
+            <button class="tool-btn" id="btn-undo"       aria-label="1つまえにもどす" disabled>↩</button>
+            <button class="tool-btn" id="btn-clear-draw" aria-label="ぜんぶけす">🗑</button>
+          </div>
         </div>
-        <canvas id="draw-canvas" width="300" height="300"></canvas>
+
+        <!-- 行2: ペン色スウォッチ -->
+        <div class="draw-color-row" id="draw-color-palette"></div>
+
+        <!-- キャンバス + オーバーレイ -->
+        <div class="draw-canvas-wrap">
+          <canvas id="draw-canvas" width="300" height="300"></canvas>
+          <!-- 全消し確認ダイアログ -->
+          <div id="clear-confirm" class="confirm-dialog" hidden>
+            <p>ぜんぶけすよ？<br>いいの？</p>
+            <div class="confirm-btns">
+              <button id="btn-clear-yes" class="confirm-yes">けす</button>
+              <button id="btn-clear-no"  class="confirm-no">やめる</button>
+            </div>
+          </div>
+        </div>
       </section>
 
       <!-- Save -->
@@ -476,6 +580,14 @@
       '#ffffff', '#f0f0f0', '#888888', '#222222'
     ];
 
+    // ペン専用カラー（黒を先頭に、子どもが描きやすい16色）
+    const PEN_COLORS = [
+      '#222222', '#ee5a24', '#ff6b9d', '#ffd93d',
+      '#6bcb77', '#45b7d1', '#5f27cd', '#ff9ff3',
+      '#ff8c42', '#4ecdc4', '#54a0ff', '#96ceb4',
+      '#dda0dd', '#ffffff', '#f0f0f0', '#888888'
+    ];
+
     const STAMP_LIST = [
       '⭐','🌟','💖','🌈','🦄','🐱','🐶','🐰',
       '🎀','🍎','🍓','🍭','🎂','🎈','🎵','🌸',
@@ -489,9 +601,12 @@
       bgColor:     '#ff6b9d',
       stamp:       null,
       stickerText: '',
-      penColor:    '#e74c3c',
-      penSize:     6,
+      penColor:    '#222222', // 黒がデフォルト（子どもが描きやすい）
+      penSize:     10,        // ふつうサイズをデフォルトに
       eraserMode:  false,
+      eraserSize:  16,        // 消しゴム専用サイズ
+      undoStack:   [],        // ImageData[] アンドゥ履歴
+      redoStack:   [],        // ImageData[] リドゥ履歴
     };
 
     /* ===== STORAGE ===== */
@@ -669,6 +784,7 @@
       isDrawing: false,
       lastX:     0,
       lastY:     0,
+      MAX_UNDO:  20,
 
       init() {
         this.canvas = document.getElementById('draw-canvas');
@@ -695,30 +811,63 @@
 
       _applyPenSettings() {
         const ctx = this.ctx;
-        ctx.lineWidth = state.penSize;
+        ctx.globalCompositeOperation = 'source-over';
         if (state.eraserMode) {
-          ctx.globalCompositeOperation = 'destination-out';
-          ctx.strokeStyle = 'rgba(0,0,0,1)';
+          ctx.strokeStyle = '#ffffff'; // 白で上書き（透明穴ではなく自然な消去）
+          ctx.lineWidth   = state.eraserSize;
         } else {
-          ctx.globalCompositeOperation = 'source-over';
           ctx.strokeStyle = state.penColor;
+          ctx.lineWidth   = state.penSize;
         }
+      },
+
+      // ストローク開始前にスナップショットをアンドゥスタックへ保存
+      _saveSnapshot() {
+        const img = this.ctx.getImageData(0, 0, this.canvas.width, this.canvas.height);
+        state.undoStack.push(img);
+        if (state.undoStack.length > this.MAX_UNDO) state.undoStack.shift();
+        state.redoStack = [];
+        updateUndoRedoButtons();
+      },
+
+      undo() {
+        if (state.undoStack.length === 0) return;
+        const current = this.ctx.getImageData(0, 0, this.canvas.width, this.canvas.height);
+        state.redoStack.push(current);
+        const prev = state.undoStack.pop();
+        this.ctx.putImageData(prev, 0, 0);
+        PreviewRenderer.render();
+        updateUndoRedoButtons();
+      },
+
+      redo() {
+        if (state.redoStack.length === 0) return;
+        const current = this.ctx.getImageData(0, 0, this.canvas.width, this.canvas.height);
+        state.undoStack.push(current);
+        const next = state.redoStack.pop();
+        this.ctx.putImageData(next, 0, 0);
+        PreviewRenderer.render();
+        updateUndoRedoButtons();
       },
 
       _onDown(e) {
         e.preventDefault();
+        // パームリジェクション: 接触幅が広すぎるタッチは無視
+        if (e.pointerType === 'touch' && e.width > 80) return;
+
+        this._saveSnapshot(); // ストローク前にスナップショット保存
         this.canvas.setPointerCapture(e.pointerId);
         this.isDrawing = true;
         const pos = this._getPos(e);
         this.lastX = pos.x;
         this.lastY = pos.y;
 
-        // Single dot for tap without move
+        // タップ（移動なし）のドット描画
         this._applyPenSettings();
         const ctx = this.ctx;
         ctx.beginPath();
-        ctx.arc(pos.x, pos.y, state.penSize / 2, 0, Math.PI * 2);
-        ctx.fillStyle = state.eraserMode ? 'rgba(0,0,0,1)' : state.penColor;
+        ctx.arc(pos.x, pos.y, (state.eraserMode ? state.eraserSize : state.penSize) / 2, 0, Math.PI * 2);
+        ctx.fillStyle = state.eraserMode ? '#ffffff' : state.penColor;
         ctx.fill();
         PreviewRenderer.render();
       },
@@ -742,12 +891,14 @@
 
       _onUp() {
         this.isDrawing = false;
-        // compositeOperationをリセットして次の操作に備える
         this.ctx.globalCompositeOperation = 'source-over';
       },
 
       clear() {
         this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+        state.undoStack = [];
+        state.redoStack = [];
+        updateUndoRedoButtons();
         PreviewRenderer.render();
       },
     };
@@ -917,24 +1068,61 @@
       },
 
       _wireDrawTools() {
-        document.getElementById('pen-color').addEventListener('input', e => {
-          state.penColor   = e.target.value;
-          state.eraserMode = false;
-          document.getElementById('btn-eraser').classList.remove('active');
+        // ペンサイズ 3段階ボタン
+        document.querySelectorAll('.pen-size-btn').forEach(btn => {
+          btn.addEventListener('click', () => {
+            state.penSize    = parseInt(btn.dataset.size, 10);
+            state.eraserMode = false;
+            document.getElementById('btn-eraser').classList.remove('active');
+            document.getElementById('draw-canvas').classList.remove('eraser-mode');
+            document.querySelectorAll('.pen-size-btn').forEach(b =>
+              b.classList.toggle('active', b === btn)
+            );
+          });
         });
 
-        document.getElementById('pen-size').addEventListener('input', e => {
-          state.penSize = parseInt(e.target.value, 10);
-        });
-
+        // 消しゴムトグル
         document.getElementById('btn-eraser').addEventListener('click', () => {
           state.eraserMode = !state.eraserMode;
           document.getElementById('btn-eraser').classList.toggle('active', state.eraserMode);
+          document.getElementById('draw-canvas').classList.toggle('eraser-mode', state.eraserMode);
+          // 消しゴムON時はサイズボタンのアクティブを外す
+          if (state.eraserMode) {
+            document.querySelectorAll('.pen-size-btn').forEach(b => b.classList.remove('active'));
+          } else {
+            // 現在のpenSizeに対応するボタンを再アクティブ
+            document.querySelectorAll('.pen-size-btn').forEach(b =>
+              b.classList.toggle('active', parseInt(b.dataset.size, 10) === state.penSize)
+            );
+          }
         });
 
+        // アンドゥ
+        document.getElementById('btn-undo').addEventListener('click', () => DrawingPad.undo());
+
+        // 全消し（確認ダイアログ付き）
+        const clearDialog = document.getElementById('clear-confirm');
         document.getElementById('btn-clear-draw').addEventListener('click', () => {
+          clearDialog.hidden = false;
+        });
+        document.getElementById('btn-clear-yes').addEventListener('click', () => {
+          clearDialog.hidden = true;
           DrawingPad.clear();
         });
+        document.getElementById('btn-clear-no').addEventListener('click', () => {
+          clearDialog.hidden = true;
+        });
+        // ダイアログ外タップで閉じる
+        document.addEventListener('pointerdown', e => {
+          if (!clearDialog.hidden &&
+              !clearDialog.contains(e.target) &&
+              e.target !== document.getElementById('btn-clear-draw')) {
+            clearDialog.hidden = true;
+          }
+        }, { capture: true });
+
+        // ペン色スウォッチ構築
+        buildDrawColorPalette();
       },
 
       _wireSaveButton() {
@@ -956,6 +1144,41 @@
     };
 
     /* ===== HELPERS ===== */
+
+    // ペン色スウォッチを動的生成（COLOR_PALETTEのパターンを流用）
+    function buildDrawColorPalette() {
+      const row = document.getElementById('draw-color-palette');
+      PEN_COLORS.forEach((color, i) => {
+        const btn = document.createElement('button');
+        btn.className     = 'color-swatch' + (i === 0 ? ' active' : '');
+        btn.style.background = color;
+        btn.dataset.color = color;
+        btn.setAttribute('aria-label', 'ペンのいろ');
+        if (color === '#ffffff' || color === '#f0f0f0') {
+          btn.style.border = '3px solid #ccc';
+        }
+        btn.addEventListener('click', () => {
+          state.penColor   = color;
+          state.eraserMode = false;
+          document.getElementById('btn-eraser').classList.remove('active');
+          document.getElementById('draw-canvas').classList.remove('eraser-mode');
+          // 消しゴムOFF時はサイズボタンを再アクティブ
+          document.querySelectorAll('.pen-size-btn').forEach(b =>
+            b.classList.toggle('active', parseInt(b.dataset.size, 10) === state.penSize)
+          );
+          row.querySelectorAll('.color-swatch').forEach(s =>
+            s.classList.toggle('active', s.dataset.color === color)
+          );
+        });
+        row.appendChild(btn);
+      });
+    }
+
+    // アンドゥ/リドゥボタンの有効・無効を更新
+    function updateUndoRedoButtons() {
+      const undoBtn = document.getElementById('btn-undo');
+      if (undoBtn) undoBtn.disabled = state.undoStack.length === 0;
+    }
 
     function showScreen(name) {
       document.body.dataset.screen = name;
