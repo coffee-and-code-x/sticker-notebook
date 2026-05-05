@@ -304,6 +304,7 @@
     }
     #draw-canvas.eraser-mode      { cursor: cell; }
     #draw-canvas.stamp-place-mode { cursor: move; }
+    #draw-canvas.text-place-mode  { cursor: move; }
 
     /* 全消し確認ダイアログ */
     .confirm-dialog {
@@ -503,6 +504,11 @@
         <p class="panel-label">もじ</p>
         <input type="text" id="sticker-text" maxlength="12"
                placeholder="ことばをいれてね">
+        <div id="text-place-row" class="stamp-place-row" hidden>
+          <button class="stamp-place-btn" id="btn-text-place" aria-label="もじのいちをきめる">
+            🎯 いちをきめる
+          </button>
+        </div>
       </section>
 
       <!-- Drawing -->
@@ -635,6 +641,9 @@
       stampX:      150,       // スタンプ中心 X（canvas座標 0-300）
       stampY:      150,       // スタンプ中心 Y（canvas座標 0-300）
       stampPlaceMode: false,  // スタンプ配置モード中か
+      textX:       150,       // テキスト中心 X（canvas座標 0-300）
+      textY:       230,       // テキスト中心 Y（canvas座標 0-300）
+      textPlaceMode: false,   // テキスト配置モード中か
     };
 
     /* ===== STORAGE ===== */
@@ -894,6 +903,14 @@
           return;
         }
 
+        // テキスト配置モード: 描画せずテキスト位置だけ更新
+        if (state.textPlaceMode) {
+          state.textX = pos.x;
+          state.textY = pos.y;
+          PreviewRenderer.render();
+          return;
+        }
+
         this._saveSnapshot();
         this.lastX = pos.x;
         this.lastY = pos.y;
@@ -921,6 +938,14 @@
           return;
         }
 
+        // テキスト配置モード: ドラッグでテキストをリアルタイム移動
+        if (state.textPlaceMode) {
+          state.textX = pos.x;
+          state.textY = pos.y;
+          PreviewRenderer.render();
+          return;
+        }
+
         const ctx = this.ctx;
         this._applyPenSettings();
         ctx.beginPath();
@@ -937,6 +962,7 @@
         this.isDrawing = false;
         this.ctx.globalCompositeOperation = 'source-over';
         if (state.stampPlaceMode) exitStampPlaceMode();
+        if (state.textPlaceMode)  exitTextPlaceMode();
       },
 
       clear() {
@@ -1009,7 +1035,7 @@
           ctx.restore();
         }
 
-        // Layer 4: text
+        // Layer 4: text at user-placed position
         if (state.stickerText) {
           ctx.save();
           ShapeRenderer.clipToShape(ctx, cx, cy, r, state.shape);
@@ -1017,11 +1043,10 @@
           ctx.font         = `bold ${fontSize}px "Hiragino Maru Gothic Pro", sans-serif`;
           ctx.textAlign    = 'center';
           ctx.textBaseline = 'middle';
-          const textY = state.stamp ? cy + 48 : cy;
           ctx.shadowColor  = 'rgba(0,0,0,0.55)';
           ctx.shadowBlur   = 8;
           ctx.fillStyle    = '#ffffff';
-          ctx.fillText(state.stickerText, cx, textY);
+          ctx.fillText(state.stickerText, state.textX, state.textY);
           ctx.restore();
         }
       },
@@ -1109,10 +1134,28 @@
       },
 
       _wireTextInput() {
-        const input = document.getElementById('sticker-text');
+        const input      = document.getElementById('sticker-text');
+        const placeRow   = document.getElementById('text-place-row');
         input.addEventListener('input', () => {
           state.stickerText = input.value;
+          placeRow.hidden = !input.value;
+          if (!input.value) exitTextPlaceMode();
           PreviewRenderer.render();
+        });
+
+        document.getElementById('btn-text-place').addEventListener('click', () => {
+          state.textPlaceMode = !state.textPlaceMode;
+          document.getElementById('btn-text-place').classList.toggle('active', state.textPlaceMode);
+          document.getElementById('draw-canvas').classList.toggle('text-place-mode', state.textPlaceMode);
+          if (state.textPlaceMode) {
+            exitStampPlaceMode();
+            state.eraserMode = false;
+            document.getElementById('btn-eraser').classList.remove('active');
+            document.getElementById('draw-canvas').classList.remove('eraser-mode');
+            document.querySelectorAll('.pen-size-btn').forEach(b =>
+              b.classList.toggle('active', parseInt(b.dataset.size, 10) === state.penSize)
+            );
+          }
         });
       },
 
@@ -1123,6 +1166,7 @@
             state.penSize    = parseInt(btn.dataset.size, 10);
             state.eraserMode = false;
             exitStampPlaceMode();
+            exitTextPlaceMode();
             document.getElementById('btn-eraser').classList.remove('active');
             document.getElementById('draw-canvas').classList.remove('eraser-mode');
             document.querySelectorAll('.pen-size-btn').forEach(b =>
@@ -1134,6 +1178,7 @@
         // 消しゴムトグル
         document.getElementById('btn-eraser').addEventListener('click', () => {
           exitStampPlaceMode();
+          exitTextPlaceMode();
           state.eraserMode = !state.eraserMode;
           document.getElementById('btn-eraser').classList.toggle('active', state.eraserMode);
           document.getElementById('draw-canvas').classList.toggle('eraser-mode', state.eraserMode);
@@ -1245,6 +1290,14 @@
       const btn = document.getElementById('btn-stamp-place');
       if (btn) btn.classList.remove('active');
       document.getElementById('draw-canvas').classList.remove('stamp-place-mode');
+    }
+
+    // テキスト配置モードを解除
+    function exitTextPlaceMode() {
+      state.textPlaceMode = false;
+      const btn = document.getElementById('btn-text-place');
+      if (btn) btn.classList.remove('active');
+      document.getElementById('draw-canvas').classList.remove('text-place-mode');
     }
 
     // アンドゥ/リドゥボタンの有効・無効を更新
