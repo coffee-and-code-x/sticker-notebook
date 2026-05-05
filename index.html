@@ -170,6 +170,16 @@
     }
     .stamp-none { font-size: 1.2rem; color: #999; }
 
+    /* スタンプ配置ボタン行（スタンプ選択時のみ表示） */
+    .stamp-place-row { margin-top: 10px; }
+    .stamp-place-row[hidden] { display: none; }
+    .stamp-place-btn {
+      width: 100%;
+      height: 44px;
+      font-size: 1rem;
+      gap: 4px;
+    }
+
     /* ===== MAKER: TEXT INPUT ===== */
     #sticker-text {
       width: 100%;
@@ -464,6 +474,11 @@
       <section class="panel panel-stamps">
         <p class="panel-label">スタンプ</p>
         <div class="stamp-scroll" id="stamp-picker"></div>
+        <div id="stamp-place-row" class="stamp-place-row" hidden>
+          <button class="tool-btn stamp-place-btn" id="btn-stamp-place" aria-label="スタンプをうごかす">
+            🎯 いちをきめる
+          </button>
+        </div>
       </section>
 
       <!-- Text -->
@@ -491,10 +506,9 @@
             </button>
           </div>
           <div class="draw-action-group">
-            <button class="tool-btn" id="btn-stamp-place" aria-label="スタンプをうごかす" disabled>🎯</button>
-            <button class="tool-btn" id="btn-eraser"      aria-label="けしごむ">🩹</button>
-            <button class="tool-btn" id="btn-undo"        aria-label="1つまえにもどす" disabled>↩</button>
-            <button class="tool-btn" id="btn-clear-draw"  aria-label="ぜんぶけす">🗑</button>
+            <button class="tool-btn" id="btn-eraser"     aria-label="けしごむ">🩹</button>
+            <button class="tool-btn" id="btn-undo"       aria-label="1つまえにもどす" disabled>↩</button>
+            <button class="tool-btn" id="btn-clear-draw" aria-label="ぜんぶけす">🗑</button>
           </div>
         </div>
 
@@ -1041,7 +1055,7 @@
           exitStampPlaceMode();
           row.querySelectorAll('.stamp-btn').forEach(b => b.classList.remove('active'));
           noneBtn.classList.add('active');
-          document.getElementById('btn-stamp-place').disabled = true;
+          document.getElementById('stamp-place-row').hidden = true;
           PreviewRenderer.render();
         });
         row.appendChild(noneBtn);
@@ -1057,7 +1071,7 @@
             state.stampY = 150;
             row.querySelectorAll('.stamp-btn').forEach(b => b.classList.remove('active'));
             btn.classList.add('active');
-            document.getElementById('btn-stamp-place').disabled = false;
+            document.getElementById('stamp-place-row').hidden = false;
             PreviewRenderer.render();
           });
           row.appendChild(btn);
