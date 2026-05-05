@@ -816,12 +816,13 @@
     /* ===== DRAWING PAD ===== */
 
     const DrawingPad = {
-      canvas:    null,
-      ctx:       null,
-      isDrawing: false,
-      lastX:     0,
-      lastY:     0,
-      MAX_UNDO:  20,
+      canvas:         null,
+      ctx:            null,
+      isDrawing:      false,
+      lastX:          0,
+      lastY:          0,
+      MAX_UNDO:       20,
+      activePointers: new Set(), // タッチ中のポインターID（2点タッチ防止用）
 
       init() {
         this.canvas = document.getElementById('draw-canvas');
@@ -891,6 +892,15 @@
         e.preventDefault();
         if (e.pointerType === 'touch' && e.width > 80) return;
 
+        // 2点タッチ防止: タッチが2本以上になったら現在のストロークを中断
+        if (e.pointerType === 'touch') {
+          this.activePointers.add(e.pointerId);
+          if (this.activePointers.size > 1) {
+            this.isDrawing = false;
+            return;
+          }
+        }
+
         this.canvas.setPointerCapture(e.pointerId);
         this.isDrawing = true;
         const pos = this._getPos(e);
@@ -958,7 +968,8 @@
         PreviewRenderer.render();
       },
 
-      _onUp() {
+      _onUp(e) {
+        if (e.pointerType === 'touch') this.activePointers.delete(e.pointerId);
         this.isDrawing = false;
         this.ctx.globalCompositeOperation = 'source-over';
         if (state.stampPlaceMode) exitStampPlaceMode();
