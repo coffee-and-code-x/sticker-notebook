@@ -504,6 +504,8 @@
       font-family: inherit;
     }
     .page-dot-add:active { border-color: var(--c-primary); color: var(--c-primary); transform: scale(0.9); }
+    .page-nav-del { border-color: #ffb3b3; color: #ff6b6b; margin-left: 4px; }
+    .page-nav-del:active { background: #fff5f5; }
 
     /* ===== HOME: STICKER TRAY ===== */
     .sticker-tray-wrap {
@@ -748,6 +750,18 @@
       <button class="page-nav-btn" id="btn-prev-page" aria-label="まえのページ">‹</button>
       <div class="page-dots" id="page-dots"></div>
       <button class="page-nav-btn" id="btn-next-page" aria-label="つぎのページ">›</button>
+      <button class="page-nav-btn page-nav-del" id="btn-del-page" aria-label="このページをけす" hidden>🗑</button>
+    </div>
+    <!-- ページ削除確認ダイアログ -->
+    <div id="page-delete-dialog" class="collection-dialog" hidden>
+      <div class="collection-dialog-inner">
+        <p style="font-size:2.2rem;margin-bottom:8px">🗑</p>
+        <p>このページをけすよ？<br>シールもぜんぶきえるよ</p>
+        <div class="collection-dialog-btns">
+          <button id="page-delete-yes" class="confirm-yes">けす</button>
+          <button id="page-delete-no"  class="confirm-no">やめる</button>
+        </div>
+      </div>
     </div>
     <!-- 手帳ページ（貼り付けエリア） -->
     <div id="notebook-page">
@@ -1635,6 +1649,19 @@
         document.getElementById('btn-next-page').addEventListener('click', () =>
           this._goToPage(this._currentPage + 1)
         );
+        document.getElementById('btn-del-page').addEventListener('click', () => {
+          document.getElementById('page-delete-dialog').hidden = false;
+        });
+        document.getElementById('page-delete-yes').addEventListener('click', () => {
+          document.getElementById('page-delete-dialog').hidden = true;
+          this._deletePage();
+        });
+        document.getElementById('page-delete-no').addEventListener('click', () => {
+          document.getElementById('page-delete-dialog').hidden = true;
+        });
+        document.getElementById('page-delete-dialog').addEventListener('pointerdown', e => {
+          if (e.target === e.currentTarget) e.currentTarget.hidden = true;
+        });
         document.getElementById('notebook-page').addEventListener('pointerdown', e => {
           if (e.target.id === 'notebook-page') this._deselect();
         });
@@ -1686,9 +1713,27 @@
         const count = PageStorage.getPageCount();
         document.getElementById('btn-prev-page').disabled = this._currentPage === 0;
         document.getElementById('btn-next-page').disabled = this._currentPage >= count - 1;
+        document.getElementById('btn-del-page').hidden = count <= 1;
         document.querySelectorAll('.page-dot').forEach((dot, i) =>
           dot.classList.toggle('active', i === this._currentPage)
         );
+      },
+
+      _deletePage() {
+        const idx   = this._currentPage;
+        const count = PageStorage.getPageCount();
+        if (count <= 1) return;
+
+        // 削除ページのシールを除外し、後続ページの index を 1 ずつ詰める
+        const updated = PageStorage.getAll()
+          .filter(i => i.pageIndex !== idx)
+          .map(i => i.pageIndex > idx ? { ...i, pageIndex: i.pageIndex - 1 } : i);
+        PageStorage.saveAll(updated);
+        PageStorage.setPageCount(count - 1);
+
+        this._currentPage = Math.min(idx, count - 2);
+        this._buildPageNav();
+        this._renderNotebook();
       },
 
       _renderNotebook() {
