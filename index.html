@@ -413,6 +413,126 @@
     .placeholder-screen .placeholder-icon { font-size: 4rem; }
     .placeholder-screen p { font-size: 1rem; }
 
+    /* ===== HOME: NOTEBOOK PAGE ===== */
+    #screen-home { padding-bottom: 0; }
+
+    #notebook-page {
+      flex: 1;
+      position: relative;
+      overflow: hidden;
+      margin: 10px 12px 8px;
+      border-radius: var(--radius-lg);
+      box-shadow: 0 4px 20px rgba(0,0,0,0.10);
+      background-color: #fffef7;
+      background-image: radial-gradient(circle, #d8c9a3 1px, transparent 1px);
+      background-size: 22px 22px;
+      background-position: 11px 11px;
+    }
+    #notebook-page::before {
+      content: '';
+      position: absolute;
+      left: 36px;
+      top: 0; bottom: 0;
+      width: 2px;
+      background: rgba(220, 130, 130, 0.3);
+      z-index: 0;
+      pointer-events: none;
+    }
+
+    /* ===== HOME: STICKER TRAY ===== */
+    .sticker-tray-wrap {
+      flex-shrink: 0;
+      padding: 10px 12px 12px;
+      background: var(--c-surface);
+      border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+      box-shadow: 0 -2px 12px rgba(0,0,0,0.08);
+    }
+    .tray-label {
+      font-size: 0.75rem;
+      font-weight: bold;
+      color: var(--c-primary);
+      margin-bottom: 8px;
+      letter-spacing: 0.05em;
+    }
+    .sticker-tray {
+      display: flex;
+      gap: 8px;
+      overflow-x: auto;
+      padding-bottom: 2px;
+      -webkit-overflow-scrolling: touch;
+      scrollbar-width: none;
+      min-height: 60px;
+      align-items: center;
+    }
+    .sticker-tray::-webkit-scrollbar { display: none; }
+    .tray-sticker {
+      flex-shrink: 0;
+      width: 56px;
+      height: 56px;
+      border-radius: 10px;
+      border: 3px solid #e8e8e8;
+      cursor: pointer;
+      object-fit: cover;
+      transition: transform 0.1s, border-color 0.1s;
+    }
+    .tray-sticker:active {
+      transform: scale(0.88);
+      border-color: var(--c-primary);
+    }
+    .tray-empty {
+      font-size: 0.85rem;
+      color: #bbb;
+      line-height: 1.6;
+      flex: 1;
+    }
+
+    /* ===== HOME: PLACED STICKER ===== */
+    .placed-sticker {
+      position: absolute;
+      width: 80px;
+      height: 80px;
+      cursor: move;
+      touch-action: none;
+      user-select: none;
+      -webkit-user-select: none;
+      z-index: 2;
+      transform-origin: center center;
+    }
+    .placed-sticker img {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      pointer-events: none;
+      display: block;
+      filter: drop-shadow(0 2px 6px rgba(0,0,0,0.25));
+    }
+    .placed-sticker.selected {
+      outline: 3px dashed var(--c-primary);
+      outline-offset: 3px;
+      z-index: 5;
+    }
+    .placed-sticker-del {
+      position: absolute;
+      top: -12px;
+      right: -12px;
+      width: 28px;
+      height: 28px;
+      background: #ff6b6b;
+      color: white;
+      border: 2px solid white;
+      border-radius: 50%;
+      font-size: 0.75rem;
+      font-weight: bold;
+      font-family: inherit;
+      cursor: pointer;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+      z-index: 6;
+    }
+    .placed-sticker.selected .placed-sticker-del { display: flex; }
+
     /* ===== SAVE SUCCESS OVERLAY ===== */
     .save-success-overlay {
       position: fixed;
@@ -455,10 +575,15 @@
 
   <!-- ===== HOME SCREEN (Phase 2) ===== -->
   <div id="screen-home" class="screen">
-    <header class="screen-header"><h1>🏠 シール手帳</h1></header>
-    <div class="placeholder-screen">
-      <span class="placeholder-icon">📖</span>
-      <p>手帳ページは<br>Phase 2 で追加されます</p>
+    <header class="screen-header"><h1>📖 シール手帳</h1></header>
+    <!-- 手帳ページ（貼り付けエリア） -->
+    <div id="notebook-page">
+      <!-- 貼られたシールが JS で挿入される -->
+    </div>
+    <!-- シールトレイ -->
+    <div class="sticker-tray-wrap">
+      <p class="tray-label">✨ シールをえらんでタップしてね</p>
+      <div class="sticker-tray" id="sticker-tray"></div>
     </div>
   </div>
 
@@ -682,6 +807,35 @@
       delete(id) {
         const filtered = this.getAll().filter(s => s.id !== id);
         localStorage.setItem(STORAGE_KEY, JSON.stringify(filtered));
+      },
+    };
+
+    /* ===== PAGE STORAGE (Phase 2) ===== */
+
+    const PAGE_KEY = 'stickerNotebook_page';
+
+    const PageStorage = {
+      getAll() {
+        try { return JSON.parse(localStorage.getItem(PAGE_KEY) || '[]'); } catch { return []; }
+      },
+      saveAll(items) {
+        try { localStorage.setItem(PAGE_KEY, JSON.stringify(items)); } catch {}
+      },
+      add(imageData, x, y, rotation) {
+        const item = {
+          id: 'p_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5),
+          imageData, x, y, rotation,
+        };
+        const items = this.getAll();
+        items.push(item);
+        this.saveAll(items);
+        return item;
+      },
+      remove(id) {
+        this.saveAll(this.getAll().filter(i => i.id !== id));
+      },
+      updatePos(id, x, y) {
+        this.saveAll(this.getAll().map(i => i.id === id ? { ...i, x, y } : i));
       },
     };
 
@@ -1253,6 +1407,162 @@
       },
     };
 
+    /* ===== HOME UI (Phase 2) ===== */
+
+    const HomeUI = {
+      _selectedId: null,
+
+      init() {
+        this._renderNotebook();
+        this._buildStickerTray();
+        document.getElementById('notebook-page').addEventListener('pointerdown', e => {
+          if (e.target.id === 'notebook-page') this._deselect();
+        });
+      },
+
+      // 手帳画面に切り替えたとき or 保存後にトレイを更新
+      refresh() {
+        this._buildStickerTray();
+      },
+
+      _renderNotebook() {
+        const page = document.getElementById('notebook-page');
+        page.innerHTML = '';
+        PageStorage.getAll().forEach(item => this._createStickerEl(item));
+      },
+
+      _buildStickerTray() {
+        const tray = document.getElementById('sticker-tray');
+        tray.innerHTML = '';
+        const stickers = StickerStorage.getAll();
+        if (stickers.length === 0) {
+          const msg = document.createElement('p');
+          msg.className   = 'tray-empty';
+          msg.textContent = 'まだシールがないよ！ ✏️ つくってみよう';
+          tray.appendChild(msg);
+          return;
+        }
+        stickers.forEach(s => {
+          const img = document.createElement('img');
+          img.className = 'tray-sticker';
+          img.src = s.imageData;
+          img.alt = 'シール';
+          img.addEventListener('click', () => this._addStickerToPage(s.imageData));
+          tray.appendChild(img);
+        });
+      },
+
+      _addStickerToPage(imageData) {
+        const page = document.getElementById('notebook-page');
+        const W    = page.offsetWidth  || 300;
+        const H    = page.offsetHeight || 400;
+        const SIZE = 80;
+        const pad  = 20;
+        const x        = pad + Math.random() * Math.max(0, W - SIZE - pad * 2);
+        const y        = pad + Math.random() * Math.max(0, H - SIZE - pad * 2);
+        const rotation = Math.random() * 24 - 12;
+        const item     = PageStorage.add(imageData, x, y, rotation);
+        this._createStickerEl(item);
+      },
+
+      _createStickerEl(item) {
+        const page   = document.getElementById('notebook-page');
+        const wrap   = document.createElement('div');
+        wrap.className       = 'placed-sticker';
+        wrap.dataset.id      = item.id;
+        wrap.style.left      = item.x + 'px';
+        wrap.style.top       = item.y + 'px';
+        wrap.style.transform = `rotate(${item.rotation || 0}deg)`;
+
+        const img     = document.createElement('img');
+        img.src       = item.imageData;
+        img.alt       = 'シール';
+        img.draggable = false;
+
+        const delBtn       = document.createElement('button');
+        delBtn.className   = 'placed-sticker-del';
+        delBtn.textContent = '✕';
+        delBtn.setAttribute('aria-label', 'シールをはがす');
+        delBtn.addEventListener('pointerdown', e => {
+          e.stopPropagation();
+          PageStorage.remove(item.id);
+          wrap.remove();
+          if (this._selectedId === item.id) this._selectedId = null;
+        });
+
+        wrap.appendChild(img);
+        wrap.appendChild(delBtn);
+        page.appendChild(wrap);
+
+        wrap.addEventListener('pointerdown', e => {
+          if (e.target === delBtn) return;
+          e.stopPropagation();
+          this._select(item.id);
+        });
+
+        this._makeDraggable(wrap, item);
+      },
+
+      _select(id) {
+        this._deselect();
+        this._selectedId = id;
+        const el = document.querySelector(`.placed-sticker[data-id="${id}"]`);
+        if (el) el.classList.add('selected');
+      },
+
+      _deselect() {
+        if (this._selectedId) {
+          const el = document.querySelector(`.placed-sticker[data-id="${this._selectedId}"]`);
+          if (el) el.classList.remove('selected');
+          this._selectedId = null;
+        }
+      },
+
+      _makeDraggable(el, item) {
+        let dragging = false, moved = false, startX, startY, baseX, baseY;
+
+        el.addEventListener('pointerdown', e => {
+          if (e.target.classList.contains('placed-sticker-del')) return;
+          dragging = true;
+          moved    = false;
+          el.setPointerCapture(e.pointerId);
+          startX = e.clientX;
+          startY = e.clientY;
+          baseX  = parseFloat(el.style.left) || 0;
+          baseY  = parseFloat(el.style.top)  || 0;
+          el.style.zIndex = '10';
+        });
+
+        el.addEventListener('pointermove', e => {
+          if (!dragging) return;
+          const dx = e.clientX - startX;
+          const dy = e.clientY - startY;
+          if (Math.abs(dx) > 5 || Math.abs(dy) > 5) moved = true;
+          if (!moved) return;
+          const page = document.getElementById('notebook-page');
+          const SIZE = 80;
+          el.style.left = Math.max(0, Math.min(page.offsetWidth  - SIZE, baseX + dx)) + 'px';
+          el.style.top  = Math.max(0, Math.min(page.offsetHeight - SIZE, baseY + dy)) + 'px';
+        });
+
+        el.addEventListener('pointerup', () => {
+          if (!dragging) return;
+          dragging = false;
+          el.style.zIndex = '';
+          if (moved) {
+            const x = parseFloat(el.style.left) || 0;
+            const y = parseFloat(el.style.top)  || 0;
+            PageStorage.updatePos(item.id, x, y);
+          }
+        });
+
+        el.addEventListener('pointercancel', () => {
+          dragging = false;
+          el.style.zIndex = '';
+        });
+      },
+    };
+
     /* ===== APP SHELL ===== */
 
     const AppShell = {
@@ -1322,6 +1632,7 @@
       document.querySelectorAll('.nav-btn').forEach(btn =>
         btn.classList.toggle('active', btn.dataset.target === name)
       );
+      if (name === 'home') HomeUI.refresh();
     }
 
     function handleSave() {
@@ -1337,6 +1648,7 @@
         return;
       }
 
+      HomeUI.refresh();
       showSaveSuccess(sticker);
     }
 
@@ -1368,6 +1680,7 @@
       PreviewRenderer.init();
       DrawingPad.init();
       MakerUI.init();
+      HomeUI.init();
       PreviewRenderer.render();
     });
   </script>
