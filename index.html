@@ -533,6 +533,107 @@
     }
     .placed-sticker.selected .placed-sticker-del { display: flex; }
 
+    /* ===== COLLECTION ===== */
+    #collection-grid-wrap {
+      flex: 1;
+      overflow-y: auto;
+      padding: 12px;
+      -webkit-overflow-scrolling: touch;
+    }
+    #collection-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 10px;
+    }
+    .collection-sticker {
+      position: relative;
+      aspect-ratio: 1;
+      cursor: pointer;
+      border-radius: 12px;
+      transition: transform 0.1s;
+    }
+    .collection-sticker img {
+      width: 100%;
+      height: 100%;
+      border-radius: 12px;
+      object-fit: cover;
+      box-shadow: 0 3px 10px rgba(0,0,0,0.15);
+      display: block;
+    }
+    .collection-sticker:active { transform: scale(0.94); }
+    .collection-sticker.selected img {
+      outline: 3px dashed var(--c-primary);
+      outline-offset: 2px;
+    }
+    .collection-sticker-del {
+      position: absolute;
+      top: -10px;
+      right: -10px;
+      width: 28px;
+      height: 28px;
+      background: #ff6b6b;
+      color: white;
+      border: 2px solid white;
+      border-radius: 50%;
+      font-size: 0.75rem;
+      font-weight: bold;
+      font-family: inherit;
+      cursor: pointer;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+      z-index: 2;
+    }
+    .collection-sticker.selected .collection-sticker-del { display: flex; }
+
+    /* 削除確認ダイアログ */
+    .collection-dialog {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.5);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 200;
+    }
+    .collection-dialog[hidden] { display: none; }
+    .collection-dialog-inner {
+      background: white;
+      border-radius: 20px;
+      padding: 24px 20px;
+      text-align: center;
+      width: min(280px, 80vw);
+      box-shadow: 0 8px 32px rgba(0,0,0,0.25);
+    }
+    .collection-dialog-inner img {
+      width: 80px;
+      height: 80px;
+      border-radius: 12px;
+      margin-bottom: 12px;
+    }
+    .collection-dialog-inner p {
+      font-size: 1rem;
+      line-height: 1.6;
+      margin-bottom: 16px;
+    }
+    .collection-dialog-btns { display: flex; gap: 10px; justify-content: center; }
+
+    /* 空状態 */
+    #collection-empty {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 16px;
+      padding: 60px 20px;
+      color: #bbb;
+      text-align: center;
+    }
+    #collection-empty[hidden] { display: none; }
+    #collection-empty .placeholder-icon { font-size: 4rem; }
+    #collection-empty p { font-size: 1rem; line-height: 1.6; }
+
     /* ===== SAVE SUCCESS OVERLAY ===== */
     .save-success-overlay {
       position: fixed;
@@ -689,9 +790,23 @@
   <!-- ===== COLLECTION SCREEN (Phase 3) ===== -->
   <div id="screen-collection" class="screen">
     <header class="screen-header"><h1>⭐ シールコレクション</h1></header>
-    <div class="placeholder-screen">
-      <span class="placeholder-icon">🗂️</span>
-      <p>コレクション画面は<br>Phase 3 で追加されます</p>
+    <div id="collection-grid-wrap">
+      <div id="collection-grid"></div>
+      <div id="collection-empty" hidden>
+        <span class="placeholder-icon">🗂️</span>
+        <p>まだシールがないよ！<br>✏️ シールをつくってみよう</p>
+      </div>
+    </div>
+    <!-- 削除確認ダイアログ（フルスクリーンオーバーレイ） -->
+    <div id="collection-delete-dialog" class="collection-dialog" hidden>
+      <div class="collection-dialog-inner">
+        <img id="collection-dialog-img" src="" alt="けすシール">
+        <p>このシールをけすよ？<br>いいの？</p>
+        <div class="collection-dialog-btns">
+          <button id="collection-delete-yes" class="confirm-yes">けす</button>
+          <button id="collection-delete-no"  class="confirm-no">やめる</button>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -1563,6 +1678,105 @@
       },
     };
 
+    /* ===== COLLECTION UI (Phase 3) ===== */
+
+    const CollectionUI = {
+      _selectedId:      null,
+      _pendingDeleteId: null,
+
+      init() {
+        document.getElementById('collection-delete-yes').addEventListener('click', () => {
+          if (this._pendingDeleteId) {
+            StickerStorage.delete(this._pendingDeleteId);
+            this._pendingDeleteId = null;
+            HomeUI.refresh();
+          }
+          document.getElementById('collection-delete-dialog').hidden = true;
+          this.refresh();
+        });
+
+        document.getElementById('collection-delete-no').addEventListener('click', () => {
+          this._pendingDeleteId = null;
+          document.getElementById('collection-delete-dialog').hidden = true;
+          this._deselect();
+        });
+
+        document.getElementById('collection-delete-dialog').addEventListener('pointerdown', e => {
+          if (e.target === e.currentTarget) {
+            this._pendingDeleteId = null;
+            e.currentTarget.hidden = true;
+            this._deselect();
+          }
+        });
+      },
+
+      refresh() {
+        this._selectedId = null;
+        this._buildGrid();
+      },
+
+      _buildGrid() {
+        const grid  = document.getElementById('collection-grid');
+        const empty = document.getElementById('collection-empty');
+        grid.innerHTML = '';
+        const stickers = StickerStorage.getAll();
+
+        if (stickers.length === 0) {
+          empty.hidden = false;
+          return;
+        }
+        empty.hidden = true;
+
+        stickers.forEach(s => {
+          const wrap   = document.createElement('div');
+          wrap.className  = 'collection-sticker';
+          wrap.dataset.id = s.id;
+
+          const img = document.createElement('img');
+          img.src = s.imageData;
+          img.alt = 'シール';
+
+          const delBtn       = document.createElement('button');
+          delBtn.className   = 'collection-sticker-del';
+          delBtn.textContent = '✕';
+          delBtn.setAttribute('aria-label', 'シールをけす');
+          delBtn.addEventListener('pointerdown', e => {
+            e.stopPropagation();
+            this._confirmDelete(s.id, s.imageData);
+          });
+
+          wrap.appendChild(img);
+          wrap.appendChild(delBtn);
+          grid.appendChild(wrap);
+
+          wrap.addEventListener('click', () => {
+            this._selectedId === s.id ? this._deselect() : this._select(s.id);
+          });
+        });
+      },
+
+      _select(id) {
+        this._deselect();
+        this._selectedId = id;
+        const el = document.querySelector(`.collection-sticker[data-id="${id}"]`);
+        if (el) el.classList.add('selected');
+      },
+
+      _deselect() {
+        if (this._selectedId) {
+          const el = document.querySelector(`.collection-sticker[data-id="${this._selectedId}"]`);
+          if (el) el.classList.remove('selected');
+          this._selectedId = null;
+        }
+      },
+
+      _confirmDelete(id, imageData) {
+        this._pendingDeleteId = id;
+        document.getElementById('collection-dialog-img').src = imageData;
+        document.getElementById('collection-delete-dialog').hidden = false;
+      },
+    };
+
     /* ===== APP SHELL ===== */
 
     const AppShell = {
@@ -1632,7 +1846,8 @@
       document.querySelectorAll('.nav-btn').forEach(btn =>
         btn.classList.toggle('active', btn.dataset.target === name)
       );
-      if (name === 'home') HomeUI.refresh();
+      if (name === 'home')       HomeUI.refresh();
+      if (name === 'collection') CollectionUI.refresh();
     }
 
     function handleSave() {
@@ -1649,6 +1864,7 @@
       }
 
       HomeUI.refresh();
+      CollectionUI.refresh();
       showSaveSuccess(sticker);
     }
 
@@ -1681,6 +1897,7 @@
       DrawingPad.init();
       MakerUI.init();
       HomeUI.init();
+      CollectionUI.init();
       PreviewRenderer.render();
     });
   </script>
