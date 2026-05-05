@@ -936,6 +936,7 @@
       _onUp() {
         this.isDrawing = false;
         this.ctx.globalCompositeOperation = 'source-over';
+        if (state.stampPlaceMode) exitStampPlaceMode();
       },
 
       clear() {
