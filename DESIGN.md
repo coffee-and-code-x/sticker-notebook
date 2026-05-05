@@ -12,15 +12,17 @@
 ```
 index.html
 ├── <style>          CSS（変数・レイアウト・コンポーネント）
-├── HTML             4画面のシェル + シールメーカー UI
+├── HTML             4画面のシェル + シールメーカー UI + 手帳 UI
 └── <script>         モジュール構成（オブジェクトリテラル）
     ├── 定数          COLOR_PALETTE / PEN_COLORS / STAMP_LIST
-    ├── state         単一グローバルオブジェクト
-    ├── StickerStorage
+    ├── state         単一グローバルオブジェクト（シールメーカー用）
+    ├── StickerStorage   シールコレクション永続化
+    ├── PageStorage      手帳ページ配置データ永続化
     ├── ShapeRenderer
     ├── DrawingPad
     ├── PreviewRenderer
     ├── MakerUI
+    ├── HomeUI           手帳ページ UI（Phase 2）
     ├── AppShell
     └── ヘルパー関数群
 ```
@@ -30,18 +32,21 @@ index.html
 ## 画面システム
 
 `body[data-screen="maker"]` の CSS 属性セレクタで表示画面を切り替え。  
-`showScreen(name)` が `body.dataset.screen` を書き換えるだけで、各 `.screen` が `display: flex / none` で切り替わる。
+`showScreen(name)` が `body.dataset.screen` を書き換えるだけで、各 `.screen` が `display: flex / none` で切り替わる。  
+`name === 'home'` のとき `HomeUI.refresh()` を呼び、シールトレイを最新状態に更新する。
 
 | 画面 | ID | 状態 |
 |---|---|---|
-| 手帳 | `#screen-home` | Phase 2（プレースホルダー）|
-| シールメーカー | `#screen-maker` | ✅ 実装済み |
+| 手帳 | `#screen-home` | ✅ 実装済み（Phase 2）|
+| シールメーカー | `#screen-maker` | ✅ 実装済み（Phase 1）|
 | コレクション | `#screen-collection` | Phase 3（プレースホルダー）|
 | QR 共有 | `#screen-share` | Phase 4（プレースホルダー）|
 
 ---
 
 ## state オブジェクト
+
+シールメーカー専用のグローバル状態。手帳ページの状態は `HomeUI` が内部で管理する。
 
 ```javascript
 const state = {
@@ -180,19 +185,64 @@ PointerEvents API でマウス・タッチを統合処理。
 
 ---
 
-## 定数
+## HomeUI（Phase 2）
+
+手帳画面の UI をすべて管理するモジュール。`state` は持たず、`HomeUI._selectedId` だけを内部状態として保持する。
+
+### レイアウト
+
+```
+#screen-home（flex column）
+├── .screen-header           見出し「📖 シール手帳」
+├── #notebook-page（flex:1） 貼り付けエリア（ドット方眼ノート風）
+└── .sticker-tray-wrap       シールトレイ（固定高さ）
+```
+
+`#notebook-page` は `flex: 1` で画面の残り高さをすべて占有する。  
+`overflow: hidden` でページ外にはみ出たシールをクリップする。
+
+### ノートページ背景
+
+```css
+background-color: #fffef7;
+background-image: radial-gradient(circle, #d8c9a3 1px, transparent 1px);
+background-size: 22px 22px;
+/* ::before で左端に薄い赤縦線（リーガルパッド風）*/
+```
+
+### シールトレイ
+
+- `StickerStorage.getAll()` から全シールを `<img class="tray-sticker">` で横スクロール表示
+- 空のとき「まだシールがないよ！ ✏️ つくってみよう」を表示
+- タップするとノートページにシールを追加（`_addStickerToPage`）
+
+### 貼り付けシールの動作
+
+| 操作 | 動作 |
+|---|---|
+| トレイをタップ | ランダム位置・ランダム角度（±12°）でノートに配置 |
+| シールをタップ | 選択状態（ピンク破線枠）に切り替え |
+| 選択中にドラッグ | 位置を移動、離した瞬間に PageStorage へ保存 |
+| 選択中の ✕ ボタン | ノートから削除、PageStorage からも削除 |
+| ページ背景をタップ | 選択解除 |
+
+### HomeUI メソッド
 
 ```javascript
-COLOR_PALETTE  // 16色（背景色パレット）
-PEN_COLORS     // 16色（描画色パレット、黒を先頭に配置）
-STAMP_LIST     // 24絵文字 ['⭐','🌟','💖', ... ,'❄️','🔥']
+HomeUI.init()               // DOMContentLoaded で呼ぶ
+HomeUI.refresh()            // showScreen('home') および handleSave() 後に呼ぶ
+HomeUI._renderNotebook()    // PageStorage から貼り付けシールを全再描画
+HomeUI._buildStickerTray()  // StickerStorage からトレイを再構築
+HomeUI._addStickerToPage()  // トレイタップ時の配置処理
+HomeUI._createStickerEl()   // 貼り付けシール DOM 要素を生成・追加
+HomeUI._makeDraggable()     // PointerEvents でドラッグ処理を付与
 ```
 
 ---
 
 ## データ永続化（localStorage）
 
-キー: `stickerNotebook_stickers`
+### StickerStorage — キー: `stickerNotebook_stickers`
 
 ```json
 [{
@@ -206,6 +256,32 @@ STAMP_LIST     // 24絵文字 ['⭐','🌟','💖', ... ,'❄️','🔥']
 - 新しいシールは先頭に追加（`unshift`）
 - `QuotaExceededError` 発生時はフレンドリーなオーバーレイを表示（`alert` 不使用）
 - `StickerStorage.delete(id)` で個別削除
+
+### PageStorage — キー: `stickerNotebook_page`
+
+```json
+[{
+  "id":        "p_m3k9xab2",
+  "imageData": "data:image/png;base64,...",
+  "x":         84.5,
+  "y":         120.0,
+  "rotation":  -7.3
+}]
+```
+
+- `PageStorage.add(imageData, x, y, rotation)` — 追加して保存
+- `PageStorage.remove(id)` — 削除
+- `PageStorage.updatePos(id, x, y)` — ドラッグ後に位置を更新
+
+---
+
+## 定数
+
+```javascript
+COLOR_PALETTE  // 16色（背景色パレット）
+PEN_COLORS     // 16色（描画色パレット、黒を先頭に配置）
+STAMP_LIST     // 24絵文字 ['⭐','🌟','💖', ... ,'❄️','🔥']
+```
 
 ---
 
@@ -224,11 +300,10 @@ STAMP_LIST     // 24絵文字 ['⭐','🌟','💖', ... ,'❄️','🔥']
 
 ---
 
-## 今後の実装（Phase 2〜4）
+## 今後の実装（Phase 3〜4）
 
 | Phase | 機能 | 概要 |
 |---|---|---|
-| 2 | 手帳ページ | 作ったシールをページに貼り付けて飾れる手帳 |
 | 3 | コレクション | 保存済みシールの一覧表示・削除 |
 | 4 | QR 共有 | QR コード生成・カメラ読取でシールをやり取り |
 
