@@ -601,6 +601,115 @@
     }
     .placed-sticker.selected .placed-sticker-del { display: flex; }
 
+    /* ===== SHARE ===== */
+    .share-tabs {
+      display: flex;
+      gap: 0;
+      flex-shrink: 0;
+      border-bottom: 2px solid #f0e0e0;
+    }
+    .share-tab {
+      flex: 1;
+      height: 48px;
+      border: none;
+      background: transparent;
+      font-size: 1rem;
+      font-family: inherit;
+      font-weight: bold;
+      cursor: pointer;
+      color: #aaa;
+      transition: color 0.15s, background 0.15s;
+    }
+    .share-tab.active {
+      color: var(--c-primary);
+      background: #fff0f6;
+      border-bottom: 3px solid var(--c-primary);
+      margin-bottom: -2px;
+    }
+    .share-panel { flex: 1; overflow-y: auto; padding: 14px 12px; display: flex; flex-direction: column; align-items: center; gap: 12px; }
+    .share-panel[hidden] { display: none; }
+    .share-hint { font-size: 0.9rem; color: #888; text-align: center; line-height: 1.5; }
+    .share-error { font-size: 0.9rem; color: #ff6b6b; text-align: center; line-height: 1.5; }
+    .share-empty { font-size: 0.9rem; color: #bbb; text-align: center; line-height: 1.6; }
+    .share-sticker-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 10px;
+      width: 100%;
+    }
+    .share-sticker-item {
+      aspect-ratio: 1;
+      border-radius: 12px;
+      border: 3px solid #e8e8e8;
+      cursor: pointer;
+      object-fit: cover;
+      transition: transform 0.1s, border-color 0.1s;
+      display: block;
+      width: 100%;
+    }
+    .share-sticker-item:active { transform: scale(0.9); }
+    .share-sticker-item.selected { border-color: var(--c-primary); transform: scale(1.05); }
+    .share-qr-box {
+      background: white;
+      padding: 12px;
+      border-radius: 16px;
+      box-shadow: var(--shadow);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .share-back-btn {
+      background: none;
+      border: 2px solid #e0e0e0;
+      border-radius: var(--radius-md);
+      padding: 10px 20px;
+      font-family: inherit;
+      font-size: 0.95rem;
+      cursor: pointer;
+      color: #888;
+      transition: border-color 0.1s;
+    }
+    .share-back-btn:active { border-color: var(--c-primary); }
+    .share-camera-wrap {
+      position: relative;
+      width: 100%;
+      max-width: 300px;
+      aspect-ratio: 1;
+      border-radius: var(--radius-lg);
+      overflow: hidden;
+      background: #111;
+      box-shadow: var(--shadow);
+    }
+    #share-video {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+    .share-camera-frame {
+      position: absolute;
+      inset: 20px;
+      border: 3px solid rgba(255,255,255,0.7);
+      border-radius: 12px;
+      pointer-events: none;
+    }
+    .share-scan-result {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 12px;
+      width: 100%;
+    }
+    .share-scan-result[hidden] { display: none; }
+    #share-result-img {
+      width: 120px;
+      height: 120px;
+      border-radius: 16px;
+      box-shadow: var(--shadow);
+      object-fit: cover;
+    }
+    .share-result-label { font-size: 1.1rem; font-weight: bold; }
+
     /* ===== COLLECTION ===== */
     #collection-grid-wrap {
       flex: 1;
@@ -899,9 +1008,44 @@
   <!-- ===== SHARE SCREEN (Phase 4) ===== -->
   <div id="screen-share" class="screen">
     <header class="screen-header"><h1>📷 QRでわたす</h1></header>
-    <div class="placeholder-screen">
-      <span class="placeholder-icon">📲</span>
-      <p>QR共有画面は<br>Phase 4 で追加されます</p>
+    <!-- タブ切り替え -->
+    <div class="share-tabs">
+      <button class="share-tab active" id="tab-send">📤 おくる</button>
+      <button class="share-tab"        id="tab-receive">📥 うけとる</button>
+    </div>
+
+    <!-- 送信パネル -->
+    <div id="share-send-panel" class="share-panel">
+      <p class="share-hint">おくりたいシールをえらんでね</p>
+      <div id="share-sticker-grid" class="share-sticker-grid"></div>
+      <div id="share-qr-wrap" hidden>
+        <div id="share-qr" class="share-qr-box"></div>
+        <p class="share-hint">このQRをともだちによんでもらおう！</p>
+        <button class="share-back-btn" id="btn-qr-back">← もどる</button>
+      </div>
+      <div id="share-send-empty" class="share-empty" hidden>
+        <p>まだシールがないよ！<br>✏️ シールをつくってみよう</p>
+      </div>
+      <div id="share-size-error" class="share-error" hidden>
+        <p>⚠️ このシールはおおきすぎて<br>QRにできないよ</p>
+      </div>
+    </div>
+
+    <!-- 受信パネル -->
+    <div id="share-receive-panel" class="share-panel" hidden>
+      <div id="share-camera-wrap" class="share-camera-wrap">
+        <video id="share-video" playsinline muted></video>
+        <div class="share-camera-frame"></div>
+      </div>
+      <p class="share-hint" id="share-scan-hint">ともだちのQRをカメラでよんでね</p>
+      <canvas id="share-scan-canvas" hidden></canvas>
+      <!-- スキャン成功時 -->
+      <div id="share-scan-result" class="share-scan-result" hidden>
+        <img id="share-result-img" src="" alt="もらったシール">
+        <p class="share-result-label">シールをもらったよ！🎉</p>
+        <button class="save-btn" id="btn-save-received">💾 てちょうにいれる！</button>
+        <button class="share-back-btn" id="btn-scan-back">← もどる</button>
+      </div>
     </div>
   </div>
 
@@ -1973,6 +2117,208 @@
       },
     };
 
+    /* ===== SHARE UI (Phase 4) ===== */
+
+    const ShareUI = {
+      _stream:        null,
+      _scanLoop:      null,
+      _receivedData:  null,
+
+      init() {
+        document.getElementById('tab-send').addEventListener('click',    () => this._showTab('send'));
+        document.getElementById('tab-receive').addEventListener('click', () => this._showTab('receive'));
+        document.getElementById('btn-qr-back').addEventListener('click',  () => this._showStickerGrid());
+        document.getElementById('btn-scan-back').addEventListener('click', () => this._resetReceive());
+        document.getElementById('btn-save-received').addEventListener('click', () => this._saveReceived());
+      },
+
+      refresh() {
+        this._stopCamera();
+        this._showTab('send');
+        this._buildStickerGrid();
+      },
+
+      stopCamera() { this._stopCamera(); },
+
+      _showTab(tab) {
+        const isSend = tab === 'send';
+        document.getElementById('tab-send').classList.toggle('active', isSend);
+        document.getElementById('tab-receive').classList.toggle('active', !isSend);
+        document.getElementById('share-send-panel').hidden    = !isSend;
+        document.getElementById('share-receive-panel').hidden =  isSend;
+        if (isSend)  this._stopCamera();
+        if (!isSend) this._startCamera();
+      },
+
+      // ===== 送信側 =====
+
+      _buildStickerGrid() {
+        document.getElementById('share-qr-wrap').hidden      = true;
+        document.getElementById('share-size-error').hidden   = true;
+        const grid    = document.getElementById('share-sticker-grid');
+        const empty   = document.getElementById('share-send-empty');
+        grid.innerHTML = '';
+        const stickers = StickerStorage.getAll();
+        if (stickers.length === 0) { empty.hidden = false; grid.hidden = true; return; }
+        empty.hidden = true; grid.hidden = false;
+        stickers.forEach(s => {
+          const img = document.createElement('img');
+          img.className = 'share-sticker-item';
+          img.src = s.imageData;
+          img.alt = 'シール';
+          img.addEventListener('click', () => {
+            grid.querySelectorAll('.share-sticker-item').forEach(el => el.classList.remove('selected'));
+            img.classList.add('selected');
+            this._prepareQR(s.imageData);
+          });
+          grid.appendChild(img);
+        });
+      },
+
+      async _prepareQR(base64) {
+        const compressed = await this._compressForQR(base64);
+        document.getElementById('share-size-error').hidden = true;
+        if (!compressed) {
+          document.getElementById('share-size-error').hidden = false;
+          return;
+        }
+        this._generateQR(compressed);
+        document.getElementById('share-sticker-grid').hidden = true;
+        document.getElementById('share-qr-wrap').hidden      = false;
+        document.getElementById('share-send-empty').hidden   = true;
+      },
+
+      async _compressForQR(base64) {
+        const attempts = [
+          { size: 80, quality: 0.35 },
+          { size: 80, quality: 0.25 },
+          { size: 64, quality: 0.30 },
+          { size: 56, quality: 0.25 },
+        ];
+        for (const { size, quality } of attempts) {
+          const data = await this._resizeToJpeg(base64, size, quality);
+          if (data.length <= 2900) return data;
+        }
+        return null;
+      },
+
+      _resizeToJpeg(base64, size, quality) {
+        return new Promise(resolve => {
+          const img = new Image();
+          img.onload = () => {
+            const c   = document.createElement('canvas');
+            c.width   = size;
+            c.height  = size;
+            c.getContext('2d').drawImage(img, 0, 0, size, size);
+            resolve(c.toDataURL('image/jpeg', quality));
+          };
+          img.src = base64;
+        });
+      },
+
+      _generateQR(data) {
+        const wrap = document.getElementById('share-qr');
+        wrap.innerHTML = '';
+        /* global QRCode */
+        new QRCode(wrap, {
+          text:         data,
+          width:        220,
+          height:       220,
+          correctLevel: QRCode.CorrectLevel.L,
+        });
+      },
+
+      _showStickerGrid() {
+        document.getElementById('share-qr-wrap').hidden      = true;
+        document.getElementById('share-sticker-grid').hidden = false;
+        document.getElementById('share-sticker-grid')
+          .querySelectorAll('.share-sticker-item').forEach(el => el.classList.remove('selected'));
+      },
+
+      // ===== 受信側 =====
+
+      async _startCamera() {
+        document.getElementById('share-scan-result').hidden  = true;
+        document.getElementById('share-camera-wrap').hidden  = false;
+        document.getElementById('share-scan-hint').textContent = 'ともだちのQRをカメラでよんでね';
+        try {
+          const devices = await navigator.mediaDevices.enumerateDevices();
+          const cameras = devices.filter(d => d.kind === 'videoinput');
+          // 背面カメラを優先（facingMode より deviceId 指定が iOS Safari で確実）
+          const constraint = cameras.length > 1
+            ? { video: { deviceId: cameras.at(-1).deviceId } }
+            : { video: { facingMode: 'environment' } };
+          this._stream = await navigator.mediaDevices.getUserMedia(constraint);
+          const video = document.getElementById('share-video');
+          video.srcObject = this._stream;
+          await video.play();
+          this._scanLoop = requestAnimationFrame(() => this._scan());
+        } catch (err) {
+          document.getElementById('share-scan-hint').textContent =
+            err.name === 'NotAllowedError'
+              ? '⚠️ カメラのきょかがひつようだよ'
+              : '⚠️ カメラをつかえなかったよ';
+        }
+      },
+
+      _scan() {
+        const video  = document.getElementById('share-video');
+        const canvas = document.getElementById('share-scan-canvas');
+        if (!this._stream || video.readyState < video.HAVE_ENOUGH_DATA) {
+          this._scanLoop = requestAnimationFrame(() => this._scan());
+          return;
+        }
+        canvas.width  = video.videoWidth;
+        canvas.height = video.videoHeight;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(video, 0, 0);
+        /* global jsQR */
+        const code = jsQR(
+          ctx.getImageData(0, 0, canvas.width, canvas.height).data,
+          canvas.width, canvas.height,
+          { inversionAttempts: 'dontInvert' }
+        );
+        if (code && code.data.startsWith('data:image/')) {
+          this._stopCamera();
+          this._showResult(code.data);
+          return;
+        }
+        this._scanLoop = requestAnimationFrame(() => this._scan());
+      },
+
+      _showResult(data) {
+        this._receivedData = data;
+        document.getElementById('share-camera-wrap').hidden = true;
+        document.getElementById('share-scan-hint').textContent = '';
+        document.getElementById('share-result-img').src = data;
+        document.getElementById('share-scan-result').hidden = false;
+      },
+
+      _saveReceived() {
+        if (!this._receivedData) return;
+        StickerStorage.save(this._receivedData);
+        this._receivedData = null;
+        HomeUI.refresh();
+        CollectionUI.refresh();
+        showSaveSuccess({ imageData: document.getElementById('share-result-img').src });
+        this._resetReceive();
+        showScreen('collection');
+      },
+
+      _resetReceive() {
+        this._receivedData = null;
+        document.getElementById('share-scan-result').hidden  = true;
+        document.getElementById('share-camera-wrap').hidden  = false;
+        document.getElementById('share-scan-hint').textContent = 'ともだちのQRをカメラでよんでね';
+        this._startCamera();
+      },
+
+      _stopCamera() {
+        if (this._scanLoop)  { cancelAnimationFrame(this._scanLoop); this._scanLoop = null; }
+        if (this._stream)    { this._stream.getTracks().forEach(t => t.stop()); this._stream = null; }
+      },
+    };
+
     /* ===== APP SHELL ===== */
 
     const AppShell = {
@@ -2042,8 +2388,11 @@
       document.querySelectorAll('.nav-btn').forEach(btn =>
         btn.classList.toggle('active', btn.dataset.target === name)
       );
+      // share 画面から離れるときはカメラを止める
+      if (document.body.dataset.screen === 'share' && name !== 'share') ShareUI.stopCamera();
       if (name === 'home')       HomeUI.refresh();
       if (name === 'collection') CollectionUI.refresh();
+      if (name === 'share')      ShareUI.refresh();
     }
 
     function handleSave() {
@@ -2094,6 +2443,7 @@
       MakerUI.init();
       HomeUI.init();
       CollectionUI.init();
+      ShareUI.init();
       PreviewRenderer.render();
     });
   </script>
