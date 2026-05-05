@@ -275,7 +275,8 @@
       cursor: crosshair;
       /* 背景は透明（デフォルト）→ preview-canvas が透けて見える */
     }
-    #draw-canvas.eraser-mode { cursor: cell; }
+    #draw-canvas.eraser-mode      { cursor: cell; }
+    #draw-canvas.stamp-place-mode { cursor: move; }
 
     /* 全消し確認ダイアログ */
     .confirm-dialog {
@@ -490,9 +491,10 @@
             </button>
           </div>
           <div class="draw-action-group">
-            <button class="tool-btn" id="btn-eraser"     aria-label="けしごむ">🩹</button>
-            <button class="tool-btn" id="btn-undo"       aria-label="1つまえにもどす" disabled>↩</button>
-            <button class="tool-btn" id="btn-clear-draw" aria-label="ぜんぶけす">🗑</button>
+            <button class="tool-btn" id="btn-stamp-place" aria-label="スタンプをうごかす" disabled>🎯</button>
+            <button class="tool-btn" id="btn-eraser"      aria-label="けしごむ">🩹</button>
+            <button class="tool-btn" id="btn-undo"        aria-label="1つまえにもどす" disabled>↩</button>
+            <button class="tool-btn" id="btn-clear-draw"  aria-label="ぜんぶけす">🗑</button>
           </div>
         </div>
 
@@ -599,6 +601,9 @@
       eraserSize:  16,        // 消しゴム専用サイズ
       undoStack:   [],        // ImageData[] アンドゥ履歴
       redoStack:   [],        // ImageData[] リドゥ履歴
+      stampX:      150,       // スタンプ中心 X（canvas座標 0-300）
+      stampY:      150,       // スタンプ中心 Y（canvas座標 0-300）
+      stampPlaceMode: false,  // スタンプ配置モード中か
     };
 
     /* ===== STORAGE ===== */
@@ -844,13 +849,21 @@
 
       _onDown(e) {
         e.preventDefault();
-        // パームリジェクション: 接触幅が広すぎるタッチは無視
         if (e.pointerType === 'touch' && e.width > 80) return;
 
-        this._saveSnapshot(); // ストローク前にスナップショット保存
         this.canvas.setPointerCapture(e.pointerId);
         this.isDrawing = true;
         const pos = this._getPos(e);
+
+        // スタンプ配置モード: 描画せずスタンプ位置だけ更新
+        if (state.stampPlaceMode) {
+          state.stampX = pos.x;
+          state.stampY = pos.y;
+          PreviewRenderer.render();
+          return;
+        }
+
+        this._saveSnapshot();
         this.lastX = pos.x;
         this.lastY = pos.y;
 
@@ -868,8 +881,16 @@
         if (!this.isDrawing) return;
         e.preventDefault();
         const pos = this._getPos(e);
-        const ctx = this.ctx;
 
+        // スタンプ配置モード: ドラッグでスタンプをリアルタイム移動
+        if (state.stampPlaceMode) {
+          state.stampX = pos.x;
+          state.stampY = pos.y;
+          PreviewRenderer.render();
+          return;
+        }
+
+        const ctx = this.ctx;
         this._applyPenSettings();
         ctx.beginPath();
         ctx.moveTo(this.lastX, this.lastY);
@@ -945,15 +966,14 @@
         ctx.drawImage(this.drawCanvas, 0, 0, W, H);
         ctx.restore();
 
-        // Layer 3: emoji stamp
+        // Layer 3: emoji stamp at user-placed position
         if (state.stamp) {
           ctx.save();
           ShapeRenderer.clipToShape(ctx, cx, cy, r, state.shape);
-          const stampY = state.stickerText ? cy - 18 : cy;
           ctx.font = '72px serif';
           ctx.textAlign    = 'center';
           ctx.textBaseline = 'middle';
-          ctx.fillText(state.stamp, cx, stampY);
+          ctx.fillText(state.stamp, state.stampX, state.stampY);
           ctx.restore();
         }
 
@@ -1018,8 +1038,10 @@
         noneBtn.setAttribute('aria-label', 'スタンプなし');
         noneBtn.addEventListener('click', () => {
           state.stamp = null;
+          exitStampPlaceMode();
           row.querySelectorAll('.stamp-btn').forEach(b => b.classList.remove('active'));
           noneBtn.classList.add('active');
+          document.getElementById('btn-stamp-place').disabled = true;
           PreviewRenderer.render();
         });
         row.appendChild(noneBtn);
@@ -1031,8 +1053,11 @@
           btn.setAttribute('aria-label', emoji);
           btn.addEventListener('click', () => {
             state.stamp = emoji;
+            state.stampX = 150;  // 新しいスタンプは中央にリセット
+            state.stampY = 150;
             row.querySelectorAll('.stamp-btn').forEach(b => b.classList.remove('active'));
             btn.classList.add('active');
+            document.getElementById('btn-stamp-place').disabled = false;
             PreviewRenderer.render();
           });
           row.appendChild(btn);
@@ -1065,6 +1090,7 @@
           btn.addEventListener('click', () => {
             state.penSize    = parseInt(btn.dataset.size, 10);
             state.eraserMode = false;
+            exitStampPlaceMode();
             document.getElementById('btn-eraser').classList.remove('active');
             document.getElementById('draw-canvas').classList.remove('eraser-mode');
             document.querySelectorAll('.pen-size-btn').forEach(b =>
@@ -1075,14 +1101,29 @@
 
         // 消しゴムトグル
         document.getElementById('btn-eraser').addEventListener('click', () => {
+          exitStampPlaceMode();
           state.eraserMode = !state.eraserMode;
           document.getElementById('btn-eraser').classList.toggle('active', state.eraserMode);
           document.getElementById('draw-canvas').classList.toggle('eraser-mode', state.eraserMode);
-          // 消しゴムON時はサイズボタンのアクティブを外す
           if (state.eraserMode) {
             document.querySelectorAll('.pen-size-btn').forEach(b => b.classList.remove('active'));
           } else {
-            // 現在のpenSizeに対応するボタンを再アクティブ
+            document.querySelectorAll('.pen-size-btn').forEach(b =>
+              b.classList.toggle('active', parseInt(b.dataset.size, 10) === state.penSize)
+            );
+          }
+        });
+
+        // スタンプ配置モードトグル
+        document.getElementById('btn-stamp-place').addEventListener('click', () => {
+          state.stampPlaceMode = !state.stampPlaceMode;
+          document.getElementById('btn-stamp-place').classList.toggle('active', state.stampPlaceMode);
+          document.getElementById('draw-canvas').classList.toggle('stamp-place-mode', state.stampPlaceMode);
+          // 配置モードON時は消しゴム・ペンモードを解除
+          if (state.stampPlaceMode) {
+            state.eraserMode = false;
+            document.getElementById('btn-eraser').classList.remove('active');
+            document.getElementById('draw-canvas').classList.remove('eraser-mode');
             document.querySelectorAll('.pen-size-btn').forEach(b =>
               b.classList.toggle('active', parseInt(b.dataset.size, 10) === state.penSize)
             );
@@ -1164,6 +1205,14 @@
         });
         row.appendChild(btn);
       });
+    }
+
+    // スタンプ配置モードを解除
+    function exitStampPlaceMode() {
+      state.stampPlaceMode = false;
+      const btn = document.getElementById('btn-stamp-place');
+      if (btn) btn.classList.remove('active');
+      document.getElementById('draw-canvas').classList.remove('stamp-place-mode');
     }
 
     // アンドゥ/リドゥボタンの有効・無効を更新
