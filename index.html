@@ -72,19 +72,24 @@
       letter-spacing: 0.08em;
     }
 
-    /* ===== MAKER: PREVIEW ===== */
-    .panel-preview {
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      padding: 20px;
-    }
-    #preview-canvas {
-      display: block;
-      width: min(260px, calc(100vw - 80px));
-      height: min(260px, calc(100vw - 80px));
+    /* ===== MAKER: PREVIEW + DRAW OVERLAY ===== */
+    /* CSS Grid で preview-canvas(下)と draw-canvas(上)を同セルに重ねる */
+    .canvas-stack {
+      display: grid;
+      position: relative;      /* confirm-dialog の position:absolute 基点 */
+      width: min(300px, calc(100vw - 56px));
+      margin: 0 auto;
       border-radius: var(--radius-lg);
       box-shadow: 0 8px 24px rgba(0,0,0,0.15);
+    }
+    .canvas-stack > canvas {
+      grid-area: 1 / 1;        /* 同セルに重ねる（CSS Grid モダン手法） */
+      display: block;
+      width: 100%;
+      aspect-ratio: 1;
+    }
+    #preview-canvas {
+      pointer-events: none;    /* タッチを上の draw-canvas に通す */
     }
 
     /* ===== MAKER: SHAPES ===== */
@@ -265,19 +270,10 @@
       flex-shrink: 0;
     }
 
-    /* キャンバスラップ（確認ダイアログの基準点） */
-    .draw-canvas-wrap { position: relative; }
-
     #draw-canvas {
-      display: block;
-      width: min(280px, calc(100vw - 56px));
-      height: min(280px, calc(100vw - 56px));
-      border: 3px solid #f0c0d8;
-      border-radius: var(--radius-md);
-      touch-action: none;
+      touch-action: none;      /* iOS スクロール防止（必須） */
       cursor: crosshair;
-      margin: 0 auto;
-      background: #ffffff;
+      /* 背景は透明（デフォルト）→ preview-canvas が透けて見える */
     }
     #draw-canvas.eraser-mode { cursor: cell; }
 
@@ -442,11 +438,6 @@
     <header class="screen-header"><h1>✏️ シールをつくろう！</h1></header>
     <main class="maker-main">
 
-      <!-- Preview -->
-      <section class="panel panel-preview">
-        <canvas id="preview-canvas" width="300" height="300"></canvas>
-      </section>
-
       <!-- Shape -->
       <section class="panel panel-shapes">
         <p class="panel-label">かたち</p>
@@ -508,10 +499,11 @@
         <!-- 行2: ペン色スウォッチ -->
         <div class="draw-color-row" id="draw-color-palette"></div>
 
-        <!-- キャンバス + オーバーレイ -->
-        <div class="draw-canvas-wrap">
-          <canvas id="draw-canvas" width="300" height="300"></canvas>
-          <!-- 全消し確認ダイアログ -->
+        <!-- プレビュー＋おえかき 重ねレイヤー -->
+        <div class="canvas-stack">
+          <canvas id="preview-canvas" width="300" height="300"></canvas>
+          <canvas id="draw-canvas"    width="300" height="300"></canvas>
+          <!-- 全消し確認ダイアログ（canvas-stack 基準で上に表示） -->
           <div id="clear-confirm" class="confirm-dialog" hidden>
             <p>ぜんぶけすよ？<br>いいの？</p>
             <div class="confirm-btns">
@@ -519,7 +511,7 @@
               <button id="btn-clear-no"  class="confirm-no">やめる</button>
             </div>
           </div>
-        </div>
+        </div><!-- /.canvas-stack -->
       </section>
 
       <!-- Save -->
