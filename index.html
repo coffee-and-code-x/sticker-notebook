@@ -90,6 +90,7 @@
     }
     #preview-canvas {
       pointer-events: none;    /* タッチを上の draw-canvas に通す */
+      background: white;       /* 形状外の透明領域をメーカー表示では白く見せる */
     }
 
     /* ===== MAKER: SHAPES ===== */
@@ -1375,8 +1376,9 @@
 
       _getPos(e) {
         const rect   = this.canvas.getBoundingClientRect();
-        const scaleX = this.canvas.width  / rect.width;
-        const scaleY = this.canvas.height / rect.height;
+        // canvas.width は DPR 倍のビットマップサイズ。DPR で割って論理 (0-300) 座標に戻す
+        const scaleX = this.canvas.width  / rect.width  / DPR;
+        const scaleY = this.canvas.height / rect.height / DPR;
         return {
           x: (e.clientX - rect.left) * scaleX,
           y: (e.clientY - rect.top)  * scaleY,
@@ -1536,8 +1538,9 @@
 
       render() {
         const ctx = this.ctx;
-        const W   = this.canvas.width;
-        const H   = this.canvas.height;
+        // canvas.width は DPR 倍。ctx.scale(DPR,DPR) 済みなので論理 (300px) 空間で描画
+        const W   = this.canvas.width  / DPR;
+        const H   = this.canvas.height / DPR;
         const cx  = W / 2;
         const cy  = H / 2;
         // r=136: 形状が 300px キャンバスの端近くまで広がり余白を最小化
@@ -1545,10 +1548,8 @@
         const r   = 136;
 
         ctx.clearRect(0, 0, W, H);
-
-        // Layer 0: white base
-        ctx.fillStyle = '#ffffff';
-        ctx.fillRect(0, 0, W, H);
+        // Layer 0 の白塗りつぶしを廃止: 形状外を透明にして保存 PNG の白フチを排除。
+        // メーカー画面では #preview-canvas の CSS background:white が代わりに見える。
 
         // Border: 形状アウトラインの +2px コンター（lineWidth=4 の外側半分）
         ctx.save();
@@ -2412,7 +2413,8 @@
       const final = document.createElement('canvas');
       final.width  = 300;
       final.height = 300;
-      final.getContext('2d').drawImage(PreviewRenderer.canvas, 0, 0);
+      // DPR 倍ビットマップを 300×300 に縮小して保存（ストレージ節約）
+      final.getContext('2d').drawImage(PreviewRenderer.canvas, 0, 0, 300, 300);
       const imageData = final.toDataURL('image/png');
 
       const sticker = StickerStorage.save(imageData);
@@ -2449,10 +2451,25 @@
 
     /* ===== INIT ===== */
 
+    // デバイスピクセル比（Retina対応）。最大2倍に制限してストレージ使用量を抑える
+    const DPR = Math.min(window.devicePixelRatio || 1, 2);
+
     document.addEventListener('DOMContentLoaded', () => {
       AppShell.init();
       PreviewRenderer.init();
       DrawingPad.init();
+
+      // HiDPI 対応: ビットマップを DPR 倍に拡大し、座標系は 300px 論理空間に保つ
+      if (DPR > 1) {
+        ['preview-canvas', 'draw-canvas'].forEach(id => {
+          const c = document.getElementById(id);
+          c.width  = 300 * DPR;
+          c.height = 300 * DPR;
+        });
+        PreviewRenderer.ctx.scale(DPR, DPR);
+        DrawingPad.ctx.scale(DPR, DPR);
+      }
+
       MakerUI.init();
       HomeUI.init();
       CollectionUI.init();
