@@ -2301,7 +2301,7 @@
         const side = Math.min(vw, vh);
         const sx   = (vw - side) / 2;
         const sy   = (vh - side) / 2;
-        const SZ = 300;
+        const SZ = Math.min(side, 800);
         canvas.width  = SZ;
         canvas.height = SZ;
         const ctx = canvas.getContext('2d');
