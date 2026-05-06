@@ -2195,17 +2195,13 @@
       },
 
       async _compressForQR(base64) {
-        // 32×32ドット絵に変換して QR Version ≤16（89モジュール）を狙う
+        // 32×32ドット絵（PNG可逆）に変換して QR Version ≤16（89モジュール）を狙う
         // 420px表示で 1モジュール ≈ 4.7px → iPhoneカメラでも確実に検出できる密度
-        const MAX = 1500;
-        for (const quality of [0.50, 0.40, 0.30, 0.20]) {
-          const data = await this._resizeToDotArt(base64, quality);
-          if (data.length <= MAX) return data;
-        }
-        return null;
+        const data = await this._resizeToDotArt(base64);
+        return data.length <= 2900 ? data : null;
       },
 
-      _resizeToDotArt(base64, quality) {
+      _resizeToDotArt(base64) {
         return new Promise(resolve => {
           const img = new Image();
           img.onload = () => {
@@ -2215,7 +2211,7 @@
             const ctx = c.getContext('2d');
             ctx.imageSmoothingEnabled = false;  // 最近傍補間でドット絵風
             ctx.drawImage(img, 0, 0, 32, 32);
-            resolve(c.toDataURL('image/jpeg', quality));
+            resolve(c.toDataURL('image/png'));   // 可逆圧縮（JPEG劣化なし）
           };
           img.src = base64;
         });
