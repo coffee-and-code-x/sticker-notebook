@@ -657,6 +657,12 @@
       display: flex;
       align-items: center;
       justify-content: center;
+      width: min(420px, calc(100vw - 48px));
+    }
+    .share-qr-box canvas, .share-qr-box img {
+      width: 100% !important;
+      height: auto !important;
+      display: block;
     }
     .share-back-btn {
       background: none;
@@ -2189,10 +2195,11 @@
       },
 
       async _compressForQR(base64) {
-        // 2,000 字以下を目標にして QR Version ≤33（149 モジュール）を狙う
-        // 300px 表示で 1 モジュール ≈ 2px になり確実にスキャン可能な密度になる
+        // 2,000 字以下を目標にして QR Version ≤27（125 モジュール）を狙う
+        // 420px 表示で 1 モジュール ≈ 3.4px → jsQR が確実に検出できる密度
         const MAX = 2000;
         const attempts = [
+          { size: 44, quality: 0.12 },
           { size: 52, quality: 0.14 },
           { size: 60, quality: 0.16 },
           { size: 68, quality: 0.18 },
@@ -2227,8 +2234,8 @@
           /* global QRCode */
           new QRCode(wrap, {
             text:         data,
-            width:        300,
-            height:       300,
+            width:        420,
+            height:       420,
             correctLevel: QRCode.CorrectLevel.L,
           });
           // 生成後に canvas/img が追加されていなければ失敗
@@ -2258,8 +2265,8 @@
           const cameras = devices.filter(d => d.kind === 'videoinput');
           // 背面カメラを優先（facingMode より deviceId 指定が iOS Safari で確実）
           const constraint = cameras.length > 1
-            ? { video: { deviceId: cameras.at(-1).deviceId } }
-            : { video: { facingMode: 'environment' } };
+            ? { video: { deviceId: cameras.at(-1).deviceId, width: { ideal: 1280 }, height: { ideal: 720 } } }
+            : { video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } } };
           this._stream = await navigator.mediaDevices.getUserMedia(constraint);
           const video = document.getElementById('share-video');
           video.srcObject = this._stream;
@@ -2282,9 +2289,9 @@
           return;
         }
 
-        // 200ms スロットル（フル HD を毎フレーム処理するとモバイルで詰まる）
+        // 100ms スロットル（フル HD を毎フレーム処理するとモバイルで詰まる）
         const now = Date.now();
-        if (now - (this._lastScan || 0) < 200) {
+        if (now - (this._lastScan || 0) < 100) {
           this._scanLoop = requestAnimationFrame(() => this._scan());
           return;
         }
