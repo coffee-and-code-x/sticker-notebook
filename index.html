@@ -547,6 +547,10 @@
       transform: scale(0.88);
       border-color: var(--c-primary);
     }
+    .dot-art {
+      image-rendering: -moz-crisp-edges;
+      image-rendering: pixelated;
+    }
     .tray-empty {
       font-size: 0.85rem;
       color: #bbb;
@@ -1912,6 +1916,7 @@
           img.className = 'tray-sticker';
           img.src = s.imageData;
           img.alt = 'シール';
+          img.addEventListener('load', () => { if (img.naturalWidth <= 64) img.classList.add('dot-art'); }, { once: true });
           img.addEventListener('click', () => this._addStickerToPage(s.imageData));
           tray.appendChild(img);
         });
@@ -1943,6 +1948,7 @@
         img.src       = item.imageData;
         img.alt       = 'シール';
         img.draggable = false;
+        img.addEventListener('load', () => { if (img.naturalWidth <= 64) img.classList.add('dot-art'); }, { once: true });
 
         const delBtn       = document.createElement('button');
         delBtn.className   = 'placed-sticker-del';
@@ -2085,6 +2091,7 @@
           const img = document.createElement('img');
           img.src = s.imageData;
           img.alt = 'シール';
+          img.addEventListener('load', () => { if (img.naturalWidth <= 64) img.classList.add('dot-art'); }, { once: true });
 
           const delBtn       = document.createElement('button');
           delBtn.className   = 'collection-sticker-del';
@@ -2175,6 +2182,7 @@
           img.className = 'share-sticker-item';
           img.src = s.imageData;
           img.alt = 'シール';
+          img.addEventListener('load', () => { if (img.naturalWidth <= 64) img.classList.add('dot-art'); }, { once: true });
           img.addEventListener('click', () => {
             grid.querySelectorAll('.share-sticker-item').forEach(el => el.classList.remove('selected'));
             img.classList.add('selected');
