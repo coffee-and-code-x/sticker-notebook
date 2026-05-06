@@ -2195,32 +2195,26 @@
       },
 
       async _compressForQR(base64) {
-        // 2,000 字以下を目標にして QR Version ≤27（125 モジュール）を狙う
-        // 420px 表示で 1 モジュール ≈ 3.4px → jsQR が確実に検出できる密度
-        const MAX = 2000;
-        const attempts = [
-          { size: 44, quality: 0.12 },
-          { size: 52, quality: 0.14 },
-          { size: 60, quality: 0.16 },
-          { size: 68, quality: 0.18 },
-          { size: 76, quality: 0.20 },
-          { size: 80, quality: 0.24 },
-        ];
-        for (const { size, quality } of attempts) {
-          const data = await this._resizeToJpeg(base64, size, quality);
+        // 32×32ドット絵に変換して QR Version ≤16（89モジュール）を狙う
+        // 420px表示で 1モジュール ≈ 4.7px → iPhoneカメラでも確実に検出できる密度
+        const MAX = 1500;
+        for (const quality of [0.50, 0.40, 0.30, 0.20]) {
+          const data = await this._resizeToDotArt(base64, quality);
           if (data.length <= MAX) return data;
         }
         return null;
       },
 
-      _resizeToJpeg(base64, size, quality) {
+      _resizeToDotArt(base64, quality) {
         return new Promise(resolve => {
           const img = new Image();
           img.onload = () => {
             const c   = document.createElement('canvas');
-            c.width   = size;
-            c.height  = size;
-            c.getContext('2d').drawImage(img, 0, 0, size, size);
+            c.width   = 32;
+            c.height  = 32;
+            const ctx = c.getContext('2d');
+            ctx.imageSmoothingEnabled = false;  // 最近傍補間でドット絵風
+            ctx.drawImage(img, 0, 0, 32, 32);
             resolve(c.toDataURL('image/jpeg', quality));
           };
           img.src = base64;
