@@ -2189,16 +2189,15 @@
       },
 
       async _compressForQR(base64) {
-        // QR Version 40 level L の上限 2,953 バイトに収める
-        // 小さいサイズ・低画質から試し、最初に収まったものを採用することで
-        // できるだけ低バージョン（低密度）の QR を生成する
-        const MAX = 2900;
+        // 2,000 字以下を目標にして QR Version ≤33（149 モジュール）を狙う
+        // 300px 表示で 1 モジュール ≈ 2px になり確実にスキャン可能な密度になる
+        const MAX = 2000;
         const attempts = [
-          { size: 60, quality: 0.20 },
-          { size: 72, quality: 0.22 },
-          { size: 80, quality: 0.22 },
-          { size: 80, quality: 0.30 },
-          { size: 80, quality: 0.40 },
+          { size: 52, quality: 0.14 },
+          { size: 60, quality: 0.16 },
+          { size: 68, quality: 0.18 },
+          { size: 76, quality: 0.20 },
+          { size: 80, quality: 0.24 },
         ];
         for (const { size, quality } of attempts) {
           const data = await this._resizeToJpeg(base64, size, quality);
@@ -2228,8 +2227,8 @@
           /* global QRCode */
           new QRCode(wrap, {
             text:         data,
-            width:        280,
-            height:       280,
+            width:        300,
+            height:       300,
             correctLevel: QRCode.CorrectLevel.L,
           });
           // 生成後に canvas/img が追加されていなければ失敗
@@ -2277,18 +2276,35 @@
       _scan() {
         const video  = document.getElementById('share-video');
         const canvas = document.getElementById('share-scan-canvas');
-        if (!this._stream || video.readyState < video.HAVE_ENOUGH_DATA) {
+
+        if (!this._stream || video.readyState < 4) {
           this._scanLoop = requestAnimationFrame(() => this._scan());
           return;
         }
-        canvas.width  = video.videoWidth;
-        canvas.height = video.videoHeight;
+
+        // 200ms スロットル（フル HD を毎フレーム処理するとモバイルで詰まる）
+        const now = Date.now();
+        if (now - (this._lastScan || 0) < 200) {
+          this._scanLoop = requestAnimationFrame(() => this._scan());
+          return;
+        }
+        this._lastScan = now;
+
+        // jsQR には 300×300 にリサイズして渡す（フル解像度の 1/13 の画素数）
+        const SZ = 300;
+        canvas.width  = SZ;
+        canvas.height = SZ;
         const ctx = canvas.getContext('2d');
-        ctx.drawImage(video, 0, 0);
+        ctx.drawImage(video, 0, 0, SZ, SZ);
+
         /* global jsQR */
+        if (typeof jsQR === 'undefined') {
+          this._scanLoop = requestAnimationFrame(() => this._scan());
+          return;
+        }
         const code = jsQR(
-          ctx.getImageData(0, 0, canvas.width, canvas.height).data,
-          canvas.width, canvas.height,
+          ctx.getImageData(0, 0, SZ, SZ).data,
+          SZ, SZ,
           { inversionAttempts: 'attemptBoth' }
         );
         if (code && code.data.startsWith('data:image/')) {
