@@ -2290,12 +2290,22 @@
         }
         this._lastScan = now;
 
-        // jsQR には 300×300 にリサイズして渡す（フル解像度の 1/13 の画素数）
+        // 動画の中央を正方形クロップして 300×300 に描画
+        // 16:9/9:16 をそのまま正方形に引き伸ばすと QR モジュールが歪んで認識不能になる
+        const vw = video.videoWidth;
+        const vh = video.videoHeight;
+        if (!vw || !vh) {
+          this._scanLoop = requestAnimationFrame(() => this._scan());
+          return;
+        }
+        const side = Math.min(vw, vh);
+        const sx   = (vw - side) / 2;
+        const sy   = (vh - side) / 2;
         const SZ = 300;
         canvas.width  = SZ;
         canvas.height = SZ;
         const ctx = canvas.getContext('2d');
-        ctx.drawImage(video, 0, 0, SZ, SZ);
+        ctx.drawImage(video, sx, sy, side, side, 0, 0, SZ, SZ);
 
         /* global jsQR */
         if (typeof jsQR === 'undefined') {
