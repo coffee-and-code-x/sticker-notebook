@@ -712,6 +712,8 @@
       height: 120px;
       border-radius: 16px;
       box-shadow: var(--shadow);
+      image-rendering: -moz-crisp-edges;
+      image-rendering: pixelated;
       object-fit: cover;
     }
     .share-result-label { font-size: 1.1rem; font-weight: bold; }
@@ -1073,7 +1075,9 @@
 
   <!-- CDN -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/jsqr/dist/jsQR.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/pako@2.1.0/dist/pako.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/upng-js@2.1.0/UPNG.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/qr-scanner@1.4.2/qr-scanner.umd.min.js"></script>
 
   <script>
     'use strict';
@@ -2126,9 +2130,8 @@
     /* ===== SHARE UI (Phase 4) ===== */
 
     const ShareUI = {
-      _stream:        null,
-      _scanLoop:      null,
-      _receivedData:  null,
+      _qrScanner:    null,
+      _receivedData: null,
 
       init() {
         document.getElementById('tab-send').addEventListener('click',    () => this._showTab('send'));
@@ -2211,7 +2214,17 @@
             const ctx = c.getContext('2d');
             ctx.imageSmoothingEnabled = false;  // 最近傍補間でドット絵風
             ctx.drawImage(img, 0, 0, 32, 32);
-            resolve(c.toDataURL('image/png'));   // 可逆圧縮（JPEG劣化なし）
+            /* global UPNG */
+            if (typeof UPNG !== 'undefined') {
+              // 16色パレット indexed PNG → RGBA PNGより60〜75%小さい → QRが疎になる
+              const px  = ctx.getImageData(0, 0, 32, 32);
+              const buf = UPNG.encode([px.data.buffer], 32, 32, 16);
+              let bin = '';
+              new Uint8Array(buf).forEach(b => { bin += String.fromCharCode(b); });
+              resolve('data:image/png;base64,' + btoa(bin));
+            } else {
+              resolve(c.toDataURL('image/png'));
+            }
           };
           img.src = base64;
         });
@@ -2251,75 +2264,32 @@
         document.getElementById('share-camera-wrap').hidden  = false;
         document.getElementById('share-scan-hint').textContent = 'ともだちのQRをカメラでよんでね';
         try {
-          const devices = await navigator.mediaDevices.enumerateDevices();
-          const cameras = devices.filter(d => d.kind === 'videoinput');
-          // 背面カメラを優先（facingMode より deviceId 指定が iOS Safari で確実）
-          const constraint = cameras.length > 1
-            ? { video: { deviceId: cameras.at(-1).deviceId, width: { ideal: 1280 }, height: { ideal: 720 } } }
-            : { video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } } };
-          this._stream = await navigator.mediaDevices.getUserMedia(constraint);
+          /* global QrScanner */
+          // nimiq/qr-scanner: WebWorker + ZXing ベース（jsQR より検出率 2〜8倍）
+          // preferredCamera:'environment' が iOS ultra-wide バグを内部で回避する
+          QrScanner.WORKER_PATH = 'https://cdn.jsdelivr.net/npm/qr-scanner@1.4.2/qr-scanner-worker.min.js';
           const video = document.getElementById('share-video');
-          video.srcObject = this._stream;
-          await video.play();
-          this._scanLoop = requestAnimationFrame(() => this._scan());
+          this._qrScanner = new QrScanner(
+            video,
+            result => {
+              if (result.data.startsWith('data:image/')) {
+                this._stopCamera();
+                this._showResult(result.data);
+              }
+            },
+            {
+              preferredCamera:         'environment',
+              maxScansPerSecond:        10,
+              returnDetailedScanResult: true,
+            }
+          );
+          await this._qrScanner.start();
         } catch (err) {
           document.getElementById('share-scan-hint').textContent =
             err.name === 'NotAllowedError'
               ? '⚠️ カメラのきょかがひつようだよ'
               : '⚠️ カメラをつかえなかったよ';
         }
-      },
-
-      _scan() {
-        const video  = document.getElementById('share-video');
-        const canvas = document.getElementById('share-scan-canvas');
-
-        if (!this._stream || video.readyState < 4) {
-          this._scanLoop = requestAnimationFrame(() => this._scan());
-          return;
-        }
-
-        // 100ms スロットル（フル HD を毎フレーム処理するとモバイルで詰まる）
-        const now = Date.now();
-        if (now - (this._lastScan || 0) < 100) {
-          this._scanLoop = requestAnimationFrame(() => this._scan());
-          return;
-        }
-        this._lastScan = now;
-
-        // 動画の中央を正方形クロップして 300×300 に描画
-        // 16:9/9:16 をそのまま正方形に引き伸ばすと QR モジュールが歪んで認識不能になる
-        const vw = video.videoWidth;
-        const vh = video.videoHeight;
-        if (!vw || !vh) {
-          this._scanLoop = requestAnimationFrame(() => this._scan());
-          return;
-        }
-        const side = Math.min(vw, vh);
-        const sx   = (vw - side) / 2;
-        const sy   = (vh - side) / 2;
-        const SZ = Math.min(side, 800);
-        canvas.width  = SZ;
-        canvas.height = SZ;
-        const ctx = canvas.getContext('2d');
-        ctx.drawImage(video, sx, sy, side, side, 0, 0, SZ, SZ);
-
-        /* global jsQR */
-        if (typeof jsQR === 'undefined') {
-          this._scanLoop = requestAnimationFrame(() => this._scan());
-          return;
-        }
-        const code = jsQR(
-          ctx.getImageData(0, 0, SZ, SZ).data,
-          SZ, SZ,
-          { inversionAttempts: 'attemptBoth' }
-        );
-        if (code && code.data.startsWith('data:image/')) {
-          this._stopCamera();
-          this._showResult(code.data);
-          return;
-        }
-        this._scanLoop = requestAnimationFrame(() => this._scan());
       },
 
       _showResult(data) {
@@ -2350,8 +2320,7 @@
       },
 
       _stopCamera() {
-        if (this._scanLoop)  { cancelAnimationFrame(this._scanLoop); this._scanLoop = null; }
-        if (this._stream)    { this._stream.getTracks().forEach(t => t.stop()); this._stream = null; }
+        if (this._qrScanner) { this._qrScanner.stop(); this._qrScanner.destroy(); this._qrScanner = null; }
       },
     };
 
