@@ -2189,15 +2189,19 @@
       },
 
       async _compressForQR(base64) {
+        // Version ≤28 (level L) に収めるため 1,200 字を上限に設定
+        // → 1 モジュール ≈ 1.6px@280px 表示でスキャン可能な密度
+        const MAX = 1200;
         const attempts = [
-          { size: 80, quality: 0.35 },
-          { size: 80, quality: 0.25 },
-          { size: 64, quality: 0.30 },
-          { size: 56, quality: 0.25 },
+          { size: 80, quality: 0.28 },
+          { size: 80, quality: 0.18 },
+          { size: 64, quality: 0.20 },
+          { size: 52, quality: 0.18 },
+          { size: 44, quality: 0.16 },
         ];
         for (const { size, quality } of attempts) {
           const data = await this._resizeToJpeg(base64, size, quality);
-          if (data.length <= 2900) return data;
+          if (data.length <= MAX) return data;
         }
         return null;
       },
@@ -2219,13 +2223,21 @@
       _generateQR(data) {
         const wrap = document.getElementById('share-qr');
         wrap.innerHTML = '';
-        /* global QRCode */
-        new QRCode(wrap, {
-          text:         data,
-          width:        220,
-          height:       220,
-          correctLevel: QRCode.CorrectLevel.L,
-        });
+        try {
+          /* global QRCode */
+          new QRCode(wrap, {
+            text:         data,
+            width:        280,
+            height:       280,
+            correctLevel: QRCode.CorrectLevel.L,
+          });
+          // 生成後に canvas/img が追加されていなければ失敗
+          if (!wrap.firstChild) throw new Error('empty');
+        } catch {
+          document.getElementById('share-size-error').hidden   = false;
+          document.getElementById('share-qr-wrap').hidden      = true;
+          document.getElementById('share-sticker-grid').hidden = false;
+        }
       },
 
       _showStickerGrid() {
@@ -2276,7 +2288,7 @@
         const code = jsQR(
           ctx.getImageData(0, 0, canvas.width, canvas.height).data,
           canvas.width, canvas.height,
-          { inversionAttempts: 'dontInvert' }
+          { inversionAttempts: 'attemptBoth' }
         );
         if (code && code.data.startsWith('data:image/')) {
           this._stopCamera();
