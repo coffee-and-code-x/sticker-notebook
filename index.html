@@ -200,23 +200,6 @@
     }
     .stamp-place-btn:active { transform: scale(0.98); }
 
-    /* ===== MAKER: TEXT INPUT ===== */
-    #sticker-text {
-      width: 100%;
-      padding: 12px 14px;
-      font-size: 1.1rem;
-      font-family: inherit;
-      border: 3px solid #e0e0e0;
-      border-radius: var(--radius-md);
-      outline: none;
-      transition: border-color 0.15s;
-      background: #fafafa;
-    }
-    #sticker-text:focus {
-      border-color: var(--c-primary);
-      background: #fff;
-    }
-
     /* ===== MAKER: DRAWING ===== */
 
     /* ツールバー 2行構成 */
@@ -306,8 +289,7 @@
       /* 背景は透明（デフォルト）→ preview-canvas が透けて見える */
     }
     #draw-canvas.eraser-mode      { cursor: cell; }
-    #draw-canvas.stamp-place-mode { cursor: move; }
-    #draw-canvas.text-place-mode  { cursor: move; }
+    #draw-canvas.stamp-place-mode { cursor: crosshair; }
 
     /* 全消し確認ダイアログ */
     .confirm-dialog {
@@ -980,17 +962,6 @@
       </section>
 
       <!-- Text -->
-      <section class="panel panel-text">
-        <p class="panel-label">もじ</p>
-        <input type="text" id="sticker-text" maxlength="12"
-               placeholder="ことばをいれてね">
-        <div id="text-place-row" class="stamp-place-row" hidden>
-          <button class="stamp-place-btn" id="btn-text-place" aria-label="もじのいちをきめる">
-            🎯 いちをきめる
-          </button>
-        </div>
-      </section>
-
       <!-- Drawing -->
       <section class="panel panel-draw">
         <p class="panel-label">おえかき</p>
@@ -1182,7 +1153,6 @@
       shape:       'circle',
       bgColor:     '#ff6b9d',
       stamp:       null,
-      stickerText: '',
       penColor:    '#222222',
       penSize:     8,          // 300×300 canvas（細）
       eraserMode:  false,
@@ -1192,9 +1162,6 @@
       stampX:      150,        // スタンプ中心 X（canvas座標 0-300）
       stampY:      150,
       stampPlaceMode: false,
-      textX:       150,        // テキスト中心 X（canvas座標 0-300）
-      textY:       240,
-      textPlaceMode: false,
     };
 
     /* ===== STORAGE ===== */
@@ -1520,14 +1487,6 @@
           return;
         }
 
-        // テキスト配置モード: 描画せずテキスト位置だけ更新
-        if (state.textPlaceMode) {
-          state.textX = pos.x;
-          state.textY = pos.y;
-          PreviewRenderer.render();
-          return;
-        }
-
         this._saveSnapshot();
         this.lastX = pos.x;
         this.lastY = pos.y;
@@ -1555,13 +1514,7 @@
           return;
         }
 
-        // テキスト配置モード: ドラッグでテキストをリアルタイム移動
-        if (state.textPlaceMode) {
-          state.textX = pos.x;
-          state.textY = pos.y;
-          PreviewRenderer.render();
-          return;
-        }
+
 
         const ctx = this.ctx;
         this._applyPenSettings();
@@ -1579,14 +1532,32 @@
         if (e.pointerType === 'touch') this.activePointers.delete(e.pointerId);
         this.isDrawing = false;
         this.ctx.globalCompositeOperation = 'source-over';
-        if (state.stampPlaceMode) exitStampPlaceMode();
-        if (state.textPlaceMode)  exitTextPlaceMode();
+        if (state.stampPlaceMode) {
+          // 配置確定前にアンドゥ用スナップショットを保存
+          this._saveSnapshot();
+          burnStampToCanvas(this.ctx, this.canvas.width, this.canvas.height);
+          exitStampPlaceMode();
+          PreviewRenderer.render();
+        }
       },
 
       clear() {
         this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
         state.undoStack = [];
         state.redoStack = [];
+        // スタンプも全消し
+        state.stamp  = null;
+        state.stampX = 150;
+        state.stampY = 150;
+        exitStampPlaceMode();
+        const picker = document.getElementById('stamp-picker');
+        if (picker) {
+          picker.querySelectorAll('.stamp-btn').forEach(b => b.classList.remove('active'));
+          const noneBtn = picker.querySelector('.stamp-none');
+          if (noneBtn) noneBtn.classList.add('active');
+        }
+        const stampPlaceRow = document.getElementById('stamp-place-row');
+        if (stampPlaceRow) stampPlaceRow.hidden = true;
         updateUndoRedoButtons();
         PreviewRenderer.render();
       },
@@ -1644,21 +1615,6 @@
           ctx.textAlign    = 'center';
           ctx.textBaseline = 'middle';
           ctx.fillText(state.stamp, state.stampX, state.stampY);
-          ctx.restore();
-        }
-
-        // Layer 4: text at user-placed position
-        if (state.stickerText) {
-          ctx.save();
-          ShapeRenderer.clipToShape(ctx, cx, cy, r, state.shape);
-          const fontSize = state.stickerText.length > 4 ? 28 : 38;
-          ctx.font         = `bold ${fontSize}px "Hiragino Maru Gothic Pro", sans-serif`;
-          ctx.textAlign    = 'center';
-          ctx.textBaseline = 'middle';
-          ctx.shadowColor  = 'rgba(0,0,0,0.55)';
-          ctx.shadowBlur   = 8;
-          ctx.fillStyle    = '#ffffff';
-          ctx.fillText(state.stickerText, state.textX, state.textY);
           ctx.restore();
         }
 
@@ -1730,7 +1686,6 @@
         this._buildColorPalette();
         this._buildStampPicker();
         this._wireShapeButtons();
-        this._wireTextInput();
         this._wireDrawTools();
         this._wireSaveButton();
       },
@@ -1781,11 +1736,17 @@
           btn.setAttribute('aria-label', emoji);
           btn.addEventListener('click', () => {
             state.stamp = emoji;
-            state.stampX = 16;   // 新しいスタンプは中央にリセット
-            state.stampY = 16;
+            state.stampX = 150;
+            state.stampY = 150;
             row.querySelectorAll('.stamp-btn').forEach(b => b.classList.remove('active'));
             btn.classList.add('active');
             document.getElementById('stamp-place-row').hidden = false;
+            // 選択と同時に配置モードに入る
+            state.stampPlaceMode = true;
+            document.getElementById('btn-stamp-place').classList.add('active');
+            document.getElementById('draw-canvas').classList.add('stamp-place-mode');
+            state.eraserMode = false;
+            syncToolbarUI();
             PreviewRenderer.render();
           });
           row.appendChild(btn);
@@ -1804,28 +1765,6 @@
         });
       },
 
-      _wireTextInput() {
-        const input      = document.getElementById('sticker-text');
-        const placeRow   = document.getElementById('text-place-row');
-        input.addEventListener('input', () => {
-          state.stickerText = input.value;
-          placeRow.hidden = !input.value;
-          if (!input.value) exitTextPlaceMode();
-          PreviewRenderer.render();
-        });
-
-        document.getElementById('btn-text-place').addEventListener('click', () => {
-          state.textPlaceMode = !state.textPlaceMode;
-          document.getElementById('btn-text-place').classList.toggle('active', state.textPlaceMode);
-          document.getElementById('draw-canvas').classList.toggle('text-place-mode', state.textPlaceMode);
-          if (state.textPlaceMode) {
-            exitStampPlaceMode();
-            state.eraserMode = false;
-            syncToolbarUI();
-          }
-        });
-      },
-
       _wireDrawTools() {
         // ペンサイズ 3段階ボタン
         document.querySelectorAll('.pen-size-btn').forEach(btn => {
@@ -1833,7 +1772,6 @@
             state.penSize    = parseInt(btn.dataset.size, 10);
             state.eraserMode = false;
             exitStampPlaceMode();
-            exitTextPlaceMode();
             syncToolbarUI();
           });
         });
@@ -1841,7 +1779,6 @@
         // 消しゴムトグル
         document.getElementById('btn-eraser').addEventListener('click', () => {
           exitStampPlaceMode();
-          exitTextPlaceMode();
           state.eraserMode = !state.eraserMode;
           syncToolbarUI();
         });
@@ -2477,6 +2414,32 @@
       });
     }
 
+    // 現在のスタンプを draw-canvas に焼き込む（複数スタンプのため）
+    function burnStampToCanvas(drawCtx, W, H) {
+      if (!state.stamp) return;
+      const cx = W / 2, cy = H / 2, r = 136;
+      drawCtx.save();
+      ShapeRenderer.clipToShape(drawCtx, cx, cy, r, state.shape);
+      drawCtx.font         = '112px serif';
+      drawCtx.textAlign    = 'center';
+      drawCtx.textBaseline = 'middle';
+      drawCtx.fillText(state.stamp, state.stampX, state.stampY);
+      drawCtx.restore();
+      // レイヤーをクリア（次のスタンプ選択待ち）
+      state.stamp  = null;
+      state.stampX = 150;
+      state.stampY = 150;
+      // スタンプピッカーの選択状態をリセット
+      const picker = document.getElementById('stamp-picker');
+      if (picker) {
+        picker.querySelectorAll('.stamp-btn').forEach(b => b.classList.remove('active'));
+        const noneBtn = picker.querySelector('.stamp-none');
+        if (noneBtn) noneBtn.classList.add('active');
+      }
+      const stampPlaceRow = document.getElementById('stamp-place-row');
+      if (stampPlaceRow) stampPlaceRow.hidden = true;
+    }
+
     // スタンプ配置モードを解除
     function exitStampPlaceMode() {
       state.stampPlaceMode = false;
@@ -2485,12 +2448,15 @@
       document.getElementById('draw-canvas').classList.remove('stamp-place-mode');
     }
 
-    // テキスト配置モードを解除
-    function exitTextPlaceMode() {
-      state.textPlaceMode = false;
-      const btn = document.getElementById('btn-text-place');
-      if (btn) btn.classList.remove('active');
-      document.getElementById('draw-canvas').classList.remove('text-place-mode');
+    function syncToolbarUI() {
+      const eraserBtn = document.getElementById('btn-eraser');
+      const drawCanvas = document.getElementById('draw-canvas');
+      if (eraserBtn)  eraserBtn.classList.toggle('active', state.eraserMode);
+      if (drawCanvas) drawCanvas.classList.toggle('eraser-mode', state.eraserMode);
+      document.querySelectorAll('.pen-size-btn').forEach(b =>
+        b.classList.toggle('active', !state.eraserMode &&
+          parseInt(b.dataset.size, 10) === state.penSize)
+      );
     }
 
     function syncToolbarUI() {
