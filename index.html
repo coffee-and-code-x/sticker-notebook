@@ -492,11 +492,14 @@
       border: none;
       background: #ddd;
       cursor: pointer;
-      padding: 17px;
-      margin: -17px;
-      background-clip: content-box;
-      transition: background 0.15s, transform 0.1s;
+      position: relative;
       flex-shrink: 0;
+      transition: background 0.15s, transform 0.1s;
+    }
+    .page-dot::before {
+      content: '';
+      position: absolute;
+      inset: -14px;
     }
     .page-dot.active { background: var(--c-primary); transform: scale(1.35); }
     .page-dot-add {
