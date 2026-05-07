@@ -1772,7 +1772,6 @@
             state.penSize    = parseInt(btn.dataset.size, 10);
             state.eraserMode = false;
             exitStampPlaceMode();
-
             syncToolbarUI();
           });
         });
@@ -2447,6 +2446,17 @@
       const btn = document.getElementById('btn-stamp-place');
       if (btn) btn.classList.remove('active');
       document.getElementById('draw-canvas').classList.remove('stamp-place-mode');
+    }
+
+    function syncToolbarUI() {
+      const eraserBtn = document.getElementById('btn-eraser');
+      const drawCanvas = document.getElementById('draw-canvas');
+      if (eraserBtn)  eraserBtn.classList.toggle('active', state.eraserMode);
+      if (drawCanvas) drawCanvas.classList.toggle('eraser-mode', state.eraserMode);
+      document.querySelectorAll('.pen-size-btn').forEach(b =>
+        b.classList.toggle('active', !state.eraserMode &&
+          parseInt(b.dataset.size, 10) === state.penSize)
+      );
     }
 
     function syncToolbarUI() {
