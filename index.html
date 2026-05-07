@@ -340,6 +340,26 @@
 
     /* ===== MAKER: SAVE ===== */
     .panel-save { padding: 8px 12px 12px; }
+    .dot-preview-wrap {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 6px;
+      margin-bottom: 14px;
+    }
+    #dot-preview-canvas {
+      width: 96px;
+      height: 96px;
+      border-radius: 10px;
+      border: 2px solid #e0e0e0;
+      image-rendering: -moz-crisp-edges;
+      image-rendering: pixelated;
+    }
+    .dot-preview-label {
+      font-size: 0.72rem;
+      color: #aaa;
+      letter-spacing: 0.05em;
+    }
     .save-btn {
       width: 100%;
       padding: 18px;
@@ -359,6 +379,14 @@
       transform: translateY(3px);
       box-shadow: 0 3px 0 #c04c77;
     }
+    .save-btn--dot {
+      margin-top: 10px;
+      background: linear-gradient(135deg, #45b7d1, #5f27cd);
+      box-shadow: 0 6px 0 #2d7a94;
+      font-size: 1.05rem;
+      padding: 14px;
+    }
+    .save-btn--dot:active { box-shadow: 0 3px 0 #2d7a94; }
 
     /* ===== BOTTOM NAV ===== */
     #bottom-nav {
@@ -970,13 +998,13 @@
         <!-- 行1: ペンサイズ + アクションボタン -->
         <div class="draw-toolbar-row draw-toolbar-row--tools">
           <div class="pen-size-group" id="pen-size-group">
-            <button class="pen-size-btn active" data-size="1" aria-label="ほそいペン">
+            <button class="pen-size-btn active" data-size="8" aria-label="ほそいペン">
               <span class="pen-dot" style="width:5px;height:5px"></span>
             </button>
-            <button class="pen-size-btn" data-size="2" aria-label="ふつうのペン">
+            <button class="pen-size-btn" data-size="16" aria-label="ふつうのペン">
               <span class="pen-dot" style="width:11px;height:11px"></span>
             </button>
-            <button class="pen-size-btn" data-size="4" aria-label="ふといペン">
+            <button class="pen-size-btn" data-size="32" aria-label="ふといペン">
               <span class="pen-dot" style="width:20px;height:20px"></span>
             </button>
           </div>
@@ -993,8 +1021,8 @@
 
         <!-- プレビュー＋おえかき 重ねレイヤー -->
         <div class="canvas-stack">
-          <canvas id="preview-canvas" width="32" height="32"></canvas>
-          <canvas id="draw-canvas"    width="32" height="32"></canvas>
+          <canvas id="preview-canvas" width="300" height="300"></canvas>
+          <canvas id="draw-canvas"    width="300" height="300"></canvas>
           <!-- 全消し確認ダイアログ（canvas-stack 基準で上に表示） -->
           <div id="clear-confirm" class="confirm-dialog" hidden>
             <p>ぜんぶけすよ？<br>いいの？</p>
@@ -1008,7 +1036,12 @@
 
       <!-- Save -->
       <section class="panel panel-save">
-        <button class="save-btn" id="btn-save">💾 シールにする！</button>
+        <div class="dot-preview-wrap">
+          <canvas id="dot-preview-canvas" width="32" height="32"></canvas>
+          <p class="dot-preview-label">🎮 ドット絵にするとこうなるよ</p>
+        </div>
+        <button class="save-btn" id="btn-save">💾 そのまま保存</button>
+        <button class="save-btn save-btn--dot" id="btn-save-dot">🎮 ドット絵で保存</button>
       </section>
 
     </main>
@@ -1150,18 +1183,18 @@
       bgColor:     '#ff6b9d',
       stamp:       null,
       stickerText: '',
-      penColor:    '#222222', // 黒がデフォルト（子どもが描きやすい）
-      penSize:     1,         // 32×32 canvas のデフォルト（細）
+      penColor:    '#222222',
+      penSize:     8,          // 300×300 canvas（細）
       eraserMode:  false,
-      eraserSize:  2,         // 消しゴム専用サイズ（32×32用）
-      undoStack:   [],        // ImageData[] アンドゥ履歴
-      redoStack:   [],        // ImageData[] リドゥ履歴
-      stampX:      16,        // スタンプ中心 X（canvas座標 0-32）
-      stampY:      16,        // スタンプ中心 Y（canvas座標 0-32）
-      stampPlaceMode: false,  // スタンプ配置モード中か
-      textX:       16,        // テキスト中心 X（canvas座標 0-32）
-      textY:       26,        // テキスト中心 Y（canvas座標 0-32）
-      textPlaceMode: false,   // テキスト配置モード中か
+      eraserSize:  20,         // 消しゴム専用サイズ（300×300用）
+      undoStack:   [],
+      redoStack:   [],
+      stampX:      150,        // スタンプ中心 X（canvas座標 0-300）
+      stampY:      150,
+      stampPlaceMode: false,
+      textX:       150,        // テキスト中心 X（canvas座標 0-300）
+      textY:       240,
+      textPlaceMode: false,
     };
 
     /* ===== STORAGE ===== */
@@ -1574,11 +1607,11 @@
 
       render() {
         const ctx = this.ctx;
-        const W   = this.canvas.width;   // 32
-        const H   = this.canvas.height;  // 32
-        const cx  = W / 2;
-        const cy  = H / 2;
-        const r   = 14;  // fits within 32×32 with 2px margin
+        const W   = this.canvas.width;   // 300
+        const H   = this.canvas.height;  // 300
+        const cx  = W / 2;               // 150
+        const cy  = H / 2;               // 150
+        const r   = 136;                 // 300×300 with 14px margin
 
         ctx.clearRect(0, 0, W, H);
 
@@ -1586,7 +1619,7 @@
         ctx.save();
         ShapeRenderer.buildPath(ctx, cx, cy, r, state.shape);
         ctx.strokeStyle = 'rgba(0,0,0,0.2)';
-        ctx.lineWidth   = 1;
+        ctx.lineWidth   = 4;
         ctx.stroke();
         ctx.restore();
 
@@ -1607,7 +1640,7 @@
         if (state.stamp) {
           ctx.save();
           ShapeRenderer.clipToShape(ctx, cx, cy, r, state.shape);
-          ctx.font = '12px serif';
+          ctx.font         = '112px serif';
           ctx.textAlign    = 'center';
           ctx.textBaseline = 'middle';
           ctx.fillText(state.stamp, state.stampX, state.stampY);
@@ -1618,16 +1651,75 @@
         if (state.stickerText) {
           ctx.save();
           ShapeRenderer.clipToShape(ctx, cx, cy, r, state.shape);
-          const fontSize = state.stickerText.length > 4 ? 3 : 4;
+          const fontSize = state.stickerText.length > 4 ? 28 : 38;
           ctx.font         = `bold ${fontSize}px "Hiragino Maru Gothic Pro", sans-serif`;
           ctx.textAlign    = 'center';
           ctx.textBaseline = 'middle';
           ctx.shadowColor  = 'rgba(0,0,0,0.55)';
-          ctx.shadowBlur   = 1;
+          ctx.shadowBlur   = 8;
           ctx.fillStyle    = '#ffffff';
           ctx.fillText(state.stickerText, state.textX, state.textY);
           ctx.restore();
         }
+
+        DotArtConverter.refreshPreview(this.canvas);
+      },
+    };
+
+    /* ===== DOT ART CONVERTER ===== */
+
+    const DotArtConverter = {
+      _rgbPalette: null,
+
+      _getRgbPalette() {
+        if (!this._rgbPalette) {
+          this._rgbPalette = COLOR_PALETTE.map(hex => {
+            const n = parseInt(hex.slice(1), 16);
+            return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+          });
+        }
+        return this._rgbPalette;
+      },
+
+      _quantize(imageData) {
+        const palette = this._getRgbPalette();
+        const d = imageData.data;
+        for (let i = 0; i < d.length; i += 4) {
+          if (d[i + 3] < 128) continue;
+          const r = d[i], g = d[i + 1], b = d[i + 2];
+          let minDist = Infinity, nr = r, ng = g, nb = b;
+          for (const [pr, pg, pb] of palette) {
+            const dist = (r - pr) ** 2 + (g - pg) ** 2 + (b - pb) ** 2;
+            if (dist < minDist) { minDist = dist; nr = pr; ng = pg; nb = pb; }
+          }
+          d[i] = nr; d[i + 1] = ng; d[i + 2] = nb;
+        }
+      },
+
+      convert(srcCanvas) {
+        const dst = document.createElement('canvas');
+        dst.width = dst.height = 32;
+        const ctx = dst.getContext('2d');
+        ctx.imageSmoothingEnabled = true;
+        ctx.imageSmoothingQuality = 'high';
+        ctx.drawImage(srcCanvas, 0, 0, 32, 32);
+        const imageData = ctx.getImageData(0, 0, 32, 32);
+        this._quantize(imageData);
+        ctx.putImageData(imageData, 0, 0);
+        return dst;
+      },
+
+      toDataUrl(srcCanvas) {
+        return this.convert(srcCanvas).toDataURL('image/png');
+      },
+
+      refreshPreview(srcCanvas) {
+        const previewCanvas = document.getElementById('dot-preview-canvas');
+        if (!previewCanvas) return;
+        const dot = this.convert(srcCanvas);
+        const ctx = previewCanvas.getContext('2d');
+        ctx.clearRect(0, 0, 32, 32);
+        ctx.drawImage(dot, 0, 0);
       },
     };
 
@@ -1797,6 +1889,9 @@
       _wireSaveButton() {
         document.getElementById('btn-save').addEventListener('click', () => {
           handleSave();
+        });
+        document.getElementById('btn-save-dot').addEventListener('click', () => {
+          handleSaveDot();
         });
       },
     };
@@ -2228,11 +2323,12 @@
           const img = new Image();
           img.onload = () => {
             const c   = document.createElement('canvas');
-            c.width   = img.naturalWidth  || 32;
-            c.height  = img.naturalHeight || 32;
+            c.width   = 32;
+            c.height  = 32;
             const ctx = c.getContext('2d');
-            ctx.imageSmoothingEnabled = false;
-            ctx.drawImage(img, 0, 0);
+            ctx.imageSmoothingEnabled = true;
+            ctx.imageSmoothingQuality = 'high';
+            ctx.drawImage(img, 0, 0, 32, 32);
             /* global UPNG */
             if (typeof UPNG !== 'undefined') {
               // 16色パレット indexed PNG → RGBA PNGより60〜75%小さい → QRが疎になる
@@ -2430,13 +2526,17 @@
 
     function handleSave() {
       const imageData = PreviewRenderer.canvas.toDataURL('image/png');
-
       const sticker = StickerStorage.save(imageData);
-      if (!sticker) {
-        showSaveError();
-        return;
-      }
+      if (!sticker) { showSaveError(); return; }
+      HomeUI.refresh();
+      CollectionUI.refresh();
+      showSaveSuccess(sticker);
+    }
 
+    function handleSaveDot() {
+      const imageData = DotArtConverter.toDataUrl(PreviewRenderer.canvas);
+      const sticker = StickerStorage.save(imageData);
+      if (!sticker) { showSaveError(); return; }
       HomeUI.refresh();
       CollectionUI.refresh();
       showSaveSuccess(sticker);
